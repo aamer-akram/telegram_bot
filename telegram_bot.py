@@ -149,7 +149,7 @@ def create_table_image(df, amount, num_days):
     # إعداد الخطوط بحجم أكبر
     title_font_size = 32
     header_font_size = 36
-    cell_font_size = 20
+    cell_font_size = 30
     
     arabic_font = fm.FontProperties(fname=font_path, size=cell_font_size)
     header_font = fm.FontProperties(fname=font_path, size=header_font_size, weight='bold')
@@ -187,12 +187,13 @@ def create_table_image(df, amount, num_days):
         table_data.append(row_data)
     
     # إنشاء الجدول بألوان وتنسيق محسن
-    table = ax.table(cellText=table_data, loc='center', cellLoc='center')
+    table = ax.table(cellText=table_data, loc='center', cellLoc='center', 
+                     colWidths=[0.25, 0.25, 0.25, 0.20])
     
     # تنسيق الجدول بخطوط أكبر
     table.auto_set_font_size(False)
     table.set_fontsize(cell_font_size)
-    table.scale(1.3, 2.0)  # تكبير الجدول
+    table.scale(1.3, 2.2)  # تكبير الجدول
     
     # ألوان محسنة وتنسيق أجمل
     colors = {
