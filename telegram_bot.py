@@ -161,9 +161,9 @@ def create_table_image(df, amount, num_days):
         base_font_size = 10        # أيام ضخمة - خط صغير جداً
     
     # أحجام الخطوط
-    title_font_size = base_font_size + 6
-    header_font_size = base_font_size + 8
-    cell_font_size = base_font_size + 5
+    title_font_size = base_font_size + 10
+    header_font_size = base_font_size + 10
+    cell_font_size = base_font_size + 8
     footer_font_size = max(8, base_font_size - 2)
     
     # ========== تحديد أبعاد آمنة لتليغرام ==========
@@ -307,11 +307,11 @@ def create_table_image(df, amount, num_days):
                 cell.set_text_props(color=colors['text_dark'])
     
     # عنوان رئيسي
-    title_text = reshape_arabic_text(f'📊 جدول تقسيم {amount} على {num_days} أيام')
+    title_text = reshape_arabic_text(f' جدول تقسيم {amount} على {num_days} أيام')
     plt.suptitle(title_text, fontproperties=title_font, y=0.98)
     
     # تذييل
-    footer_text = reshape_arabic_text('✨ بوت تقسيم المقدار ✨')
+    footer_text = reshape_arabic_text(' بوت تقسيم المقدار ')
     plt.figtext(0.5, 0.02, footer_text, fontproperties=footer_font, 
                 ha='center', color='#6C757D')
     
