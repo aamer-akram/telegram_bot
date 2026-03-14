@@ -217,14 +217,14 @@ def create_table_image(df, amount, num_days):
             cell.set_facecolor(colors['header'])
             cell.set_text_props(weight='bold', color=colors['text_white'], 
                               fontproperties=header_font, ha='center')
-            cell.set_height(0.15)  # زيادة ارتفاع صف العنوان
+            cell.set_height(0.18)  # زيادة ارتفاع صف العنوان
             
         elif i == 1:  # صف المقدار
             if j == 3:  # عمود المقدار
                 cell.set_facecolor(colors['amount'])
                 cell.set_text_props(weight='bold', color=colors['text_dark'], 
                                   fontproperties=header_font, ha='center')
-                cell.set_height(0.12)
+                cell.set_height(1.12)
             else:
                 cell.set_facecolor('#F0F0F0')
                 
@@ -246,11 +246,11 @@ def create_table_image(df, amount, num_days):
         cell.set_text_props(ha='center', va='center')
     
     # إضافة عنوان رئيسي للجدول
-    title_text = reshape_arabic_text(f'📊 جدول تقسيم المقدار {amount} على {num_days} أيام')
+    title_text = reshape_arabic_text(f' جدول تقسيم المقدار {amount} على {num_days} أيام')
     plt.suptitle(title_text, fontproperties=title_font, y=0.98, fontsize=title_font_size)
     
     # إضافة تذييل (اختياري)
-    footer_text = reshape_arabic_text('✨ بوت تقسيم المقدار - جميع الحقوق محفوظة ✨')
+    footer_text = reshape_arabic_text(' بوت تقسيم المقدار - جميع الحقوق محفوظة ')
     plt.figtext(0.5, 0.02, footer_text, fontproperties=arabic_font, 
                 ha='center', fontsize=10, style='italic', color='#6C757D')
     
