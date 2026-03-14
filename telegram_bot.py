@@ -193,7 +193,7 @@ def create_table_image(df, amount, num_days):
     # تنسيق الجدول بخطوط أكبر
     table.auto_set_font_size(False)
     table.set_fontsize(cell_font_size)
-    table.scale(1.3, 2.0)  # تكبير الجدول
+    table.scale(3.3, 3.0)  # تكبير الجدول
     
     # ألوان محسنة وتنسيق أجمل
     colors = {
@@ -323,7 +323,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/cancel - إلغاء العملية الحالية\n\n"
         "📝 *كيفية الاستخدام:*\n"
         "1️⃣ أرسل /start\n"
-        "2️⃣ أدخل المقدار (مثال: 150)\n"
+        "2️⃣ أدخل المقدار (مثال: 70)\n"
         "3️⃣ أدخل عدد الأيام (مثال: 7)\n"
         "4️⃣ استلم الجدول كصورة فقط (بتصميم محسن)\n\n"
         "✅ *مميزات البوت:*\n"
