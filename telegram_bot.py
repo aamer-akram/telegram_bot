@@ -118,23 +118,26 @@ def create_schedule_table(amount, num_days):
 
 def create_table_image(df, amount, num_days):
     """
-    إنشاء صورة للجدول مع دعم اللغة العربية وعكس الاتجاه
-    وإرجاعها كـ BytesIO
+    إنشاء صورة محسنة للجدول مع خطوط أكبر وتنسيق أجمل
     """
     
     # البحث عن خط يدعم اللغة العربية
     font_path = None
     windows_font_paths = [
         'C:/Windows/Fonts/Arial.ttf',
-        'C:/Windows/Fonts/trado.ttf',
+        'C:/Windows/Fonts/trado.ttf',  # Traditional Arabic
         'C:/Windows/Fonts/times.ttf',
         'C:/Windows/Fonts/tahoma.ttf',
-        'C:/Windows/Fonts/Amiri.ttf'
+        'C:/Windows/Fonts/Amiri.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',  # للينكس
     ]
     
     for path in windows_font_paths:
         try:
-            if fm.findfont(path):
+            if os.path.exists(path):
+                font_path = path
+                break
+            elif fm.findfont(path):
                 font_path = path
                 break
         except:
@@ -143,20 +146,25 @@ def create_table_image(df, amount, num_days):
     if not font_path:
         font_path = fm.findfont('Arial')
     
-    # إعداد الخط للغة العربية
-    arabic_font = fm.FontProperties(fname=font_path, size=12)
-    title_font = fm.FontProperties(fname=font_path, size=16, weight='bold')
+    # إعداد الخطوط بحجم أكبر
+    title_font_size = 20
+    header_font_size = 16
+    cell_font_size = 14
+    
+    arabic_font = fm.FontProperties(fname=font_path, size=cell_font_size)
+    header_font = fm.FontProperties(fname=font_path, size=header_font_size, weight='bold')
+    title_font = fm.FontProperties(fname=font_path, size=title_font_size, weight='bold')
     
     # تحديد حجم الشكل بناءً على عدد الأيام
-    fig_height = max(7, num_days * 0.5 + 3)
-    fig, ax = plt.subplots(figsize=(14, fig_height))
+    fig_height = max(8, num_days * 0.7 + 3)
+    fig, ax = plt.subplots(figsize=(16, fig_height))
     ax.axis('off')
     ax.axis('tight')
     
     # تجهيز البيانات مع إعادة تشكيل النص العربي (بترتيب عكسي)
     header = [
-        reshape_arabic_text('الفترة الثانية'),
-        reshape_arabic_text('الفترة الأولى'),
+        reshape_arabic_text('مساء'),
+        reshape_arabic_text('صباح'),
         reshape_arabic_text('اليوم'),
         reshape_arabic_text('المقدار')
     ]
@@ -178,47 +186,82 @@ def create_table_image(df, amount, num_days):
         ]
         table_data.append(row_data)
     
-    # إنشاء الجدول
+    # إنشاء الجدول بألوان وتنسيق محسن
     table = ax.table(cellText=table_data, loc='center', cellLoc='center', 
-                     colWidths=[0.25, 0.25, 0.2, 0.2])
+                     colWidths=[0.25, 0.25, 0.25, 0.25])
     
-    # تنسيق الجدول
+    # تنسيق الجدول بخطوط أكبر
     table.auto_set_font_size(False)
-    table.set_fontsize(12)
-    table.scale(1.2, 1.5)
+    table.set_fontsize(cell_font_size)
+    table.scale(1.3, 2.0)  # تكبير الجدول
+    
+    # ألوان محسنة وتنسيق أجمل
+    colors = {
+        'header': '#2E86AB',  # أزرق جميل
+        'amount': '#F18F01',  # برتقالي
+        'day': '#A23B72',     # أرجواني
+        'row_even': '#F8F9FA',  # رمادي فاتح جداً
+        'row_odd': '#E9ECEF',    # رمادي فاتح
+        'border': '#212529',     # أسود داكن للحدود
+        'text_white': '#FFFFFF',
+        'text_dark': '#212529'
+    }
     
     # تنسيق الخلايا
     for (i, j), cell in table.get_celld().items():
-        cell.set_text_props(fontproperties=arabic_font, ha='center')
+        cell.set_text_props(fontproperties=arabic_font, ha='center', va='center')
+        cell.set_edgecolor(colors['border'])
+        cell.set_linewidth(1.5)
         
         if i == 0:  # صف العنوان
-            cell.set_facecolor('#4CAF50')
-            cell.set_text_props(weight='bold', color='white', 
-                              fontproperties=arabic_font, ha='center')
+            cell.set_facecolor(colors['header'])
+            cell.set_text_props(weight='bold', color=colors['text_white'], 
+                              fontproperties=header_font, ha='center')
+            cell.set_height(0.15)  # زيادة ارتفاع صف العنوان
+            
         elif i == 1:  # صف المقدار
             if j == 3:  # عمود المقدار
-                cell.set_facecolor('#FFA500')
-                cell.set_text_props(weight='bold', fontproperties=arabic_font, ha='center')
+                cell.set_facecolor(colors['amount'])
+                cell.set_text_props(weight='bold', color=colors['text_dark'], 
+                                  fontproperties=header_font, ha='center')
+                cell.set_height(0.12)
             else:
-                cell.set_facecolor('#f0f0f0')
+                cell.set_facecolor('#F0F0F0')
+                
         else:  # باقي الصفوف
-            if j == 2:  # عمود اليوم
-                cell.set_facecolor('#E3F2FD')
-                cell.set_text_props(weight='bold', fontproperties=arabic_font, ha='center')
+            # تناوب الألوان للصفوف
+            if i % 2 == 0:
+                cell.set_facecolor(colors['row_even'])
             else:
-                cell.set_facecolor('#F5F5F5')
+                cell.set_facecolor(colors['row_odd'])
+                
+            if j == 2:  # عمود اليوم
+                cell.set_facecolor(colors['day'])
+                cell.set_text_props(weight='bold', color=colors['text_white'], 
+                                  fontproperties=header_font, ha='center')
+            else:
+                cell.set_text_props(color=colors['text_dark'])
         
-        cell.set_edgecolor('#333333')
-        cell.set_linewidth(1)
+        # محاذاة النص في الخلايا
+        cell.set_text_props(ha='center', va='center')
     
-    # إضافة عنوان للجدول
-    title_text = reshape_arabic_text(f'جدول تقسيم المقدار ({amount}) على {num_days} أيام')
-    plt.suptitle(title_text, fontproperties=title_font, y=0.95)
+    # إضافة عنوان رئيسي للجدول
+    title_text = reshape_arabic_text(f'📊 جدول تقسيم المقدار {amount} على {num_days} أيام')
+    plt.suptitle(title_text, fontproperties=title_font, y=0.98, fontsize=title_font_size)
     
-    # حفظ الصورة في الذاكرة
-    img_bytes = io.BytesIO()
+    # إضافة تذييل (اختياري)
+    footer_text = reshape_arabic_text('✨ بوت تقسيم المقدار - جميع الحقوق محفوظة ✨')
+    plt.figtext(0.5, 0.02, footer_text, fontproperties=arabic_font, 
+                ha='center', fontsize=10, style='italic', color='#6C757D')
+    
+    # تحسين المسافات
     plt.tight_layout()
-    plt.savefig(img_bytes, format='PNG', dpi=300, bbox_inches='tight', facecolor='white')
+    plt.subplots_adjust(top=0.92, bottom=0.05)
+    
+    # حفظ الصورة في الذاكرة بجودة عالية
+    img_bytes = io.BytesIO()
+    plt.savefig(img_bytes, format='PNG', dpi=400, bbox_inches='tight', 
+                facecolor='white', edgecolor='none', pad_inches=0.3)
     plt.close()
     img_bytes.seek(0)
     
@@ -226,7 +269,7 @@ def create_table_image(df, amount, num_days):
 
 def format_table_text(df, amount, num_days):
     """
-    تنسيق الجدول كنص لإرساله عبر تيليغرام
+    تنسيق الجدول كنص لإرساله عبر تيليغرام (ملاحظة: لم نعد نستخدمه)
     """
     text = f"📊 *جدول تقسيم المقدار ({amount}) على {num_days} أيام*\n"
     text += "=" * 40 + "\n\n"
@@ -282,12 +325,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "1️⃣ أرسل /start\n"
         "2️⃣ أدخل المقدار (مثال: 150)\n"
         "3️⃣ أدخل عدد الأيام (مثال: 7)\n"
-        "4️⃣ استلم الجدول كصورة ونص\n\n"
+        "4️⃣ استلم الجدول كصورة فقط (بتصميم محسن)\n\n"
         "✅ *مميزات البوت:*\n"
         "• يدعم اللغة العربية بشكل كامل\n"
         "• الأيام تبدأ دائماً من الأحد\n"
         "• تقسيم دائري للفترات\n"
-        "• إرسال النتيجة كصورة ونص"
+        "• إرسال النتيجة كصورة بجودة عالية"
     )
     
     await update.message.reply_text(help_text, parse_mode='Markdown')
@@ -352,22 +395,13 @@ async def get_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         # إنشاء الجدول
         df, amount, num_days = create_schedule_table(amount, num_days)
         
-        # إنشاء صورة الجدول
+        # إنشاء صورة الجدول (بالتصميم المحسن)
         img_bytes = create_table_image(df, amount, num_days)
         
-        # تنسيق النص
-        text_result = format_table_text(df, amount, num_days)
-        
-        # إرسال الصورة
+        # إرسال الصورة فقط (بدون نص)
         await update.message.reply_photo(
             photo=img_bytes,
-            caption="📸 *صورة الجدول*",
-            parse_mode='Markdown'
-        )
-        
-        # إرسال النص
-        await update.message.reply_text(
-            text_result,
+            caption=f"📊 *نتيجة تقسيم {amount} على {num_days} أيام*",
             parse_mode='Markdown'
         )
         
@@ -434,11 +468,13 @@ def main():
     
     # تشغيل البوت
     print("✅ البوت يعمل الآن... اضغط Ctrl+C للإيقاف")
-    application.run_polling(allowed_updates=Update.ALL_TYPES,
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
         drop_pending_updates=True,  # مهم: يتجاهل أي تحديثات قديمة
         poll_interval=1.0  # التحقق من الرسائل كل ثانية
-        )
-# للاستخدام مع Render - هذا هو المتغير الذي يبحث عنه Render
+    )
+
+# للاستخدام مع Railway/Render - هذا هو المتغير الذي يبحث عنه
 application = main
 
 if __name__ == '__main__':
