@@ -161,9 +161,9 @@ def create_table_image(df, amount, num_days):
         base_font_size = 10        # أيام ضخمة - خط صغير جداً
     
     # أحجام الخطوط
-    title_font_size = base_font_size + 4
-    header_font_size = base_font_size + 2
-    cell_font_size = base_font_size + 3
+    title_font_size = base_font_size + 6
+    header_font_size = base_font_size + 8
+    cell_font_size = base_font_size + 5
     footer_font_size = max(8, base_font_size - 2)
     
     # ========== تحديد أبعاد آمنة لتليغرام ==========
