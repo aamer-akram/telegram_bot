@@ -434,7 +434,10 @@ def main():
     
     # تشغيل البوت
     print("✅ البوت يعمل الآن... اضغط Ctrl+C للإيقاف")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling(allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True,  # مهم: يتجاهل أي تحديثات قديمة
+        poll_interval=1.0  # التحقق من الرسائل كل ثانية
+        )
 # للاستخدام مع Render - هذا هو المتغير الذي يبحث عنه Render
 application = main
 
