@@ -188,7 +188,7 @@ def create_table_image(df, amount, num_days):
     
     # إنشاء الجدول بألوان وتنسيق محسن
     table = ax.table(cellText=table_data, loc='center', cellLoc='center', 
-                     colWidths=[0.25, 0.25, 0.25, 0.25])
+                     colWidths=[0.25, 0.25, 0.25, 0.1])
     
     # تنسيق الجدول بخطوط أكبر
     table.auto_set_font_size(False)
