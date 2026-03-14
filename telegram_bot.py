@@ -429,6 +429,7 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         # طلب عدد الأيام
         await update.message.reply_text(
             f"✅ تم استلام المقدار: {amount}\n\n"
+            "/cancel - إلغاء العملية الحالية\n\n"
             "🔹 *الرجاء إدخال عدد الأيام:*"
         )
         
