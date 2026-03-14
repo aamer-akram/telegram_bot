@@ -118,7 +118,7 @@ def create_schedule_table(amount, num_days):
 
 def create_table_image(df, amount, num_days):
     """
-    إنشاء صورة محسنة للجدول مع خطوط أكبر وتنسيق أجمل
+    إنشاء صورة ديناميكية للجدول - يتغير حجم الخط والجدول تلقائياً حسب عدد الأيام
     """
     
     # البحث عن خط يدعم اللغة العربية
@@ -129,7 +129,7 @@ def create_table_image(df, amount, num_days):
         'C:/Windows/Fonts/times.ttf',
         'C:/Windows/Fonts/tahoma.ttf',
         'C:/Windows/Fonts/Amiri.ttf',
-        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',  # للينكس
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
     ]
     
     for path in windows_font_paths:
@@ -146,22 +146,61 @@ def create_table_image(df, amount, num_days):
     if not font_path:
         font_path = fm.findfont('Arial')
     
-    # إعداد الخطوط بحجم أكبر
-    title_font_size = 32
-    header_font_size = 36
-    cell_font_size = 30
+    # ========== حسابات ديناميكية ==========
+    
+    # 1. تحديد حجم الخط الأساسي حسب عدد الأيام
+    if num_days <= 5:
+        base_font_size = 22        # أيام قليلة - خط كبير جداً
+    elif num_days <= 10:
+        base_font_size = 18        # أيام متوسطة - خط كبير
+    elif num_days <= 15:
+        base_font_size = 16        # أيام كثيرة - خط متوسط
+    elif num_days <= 20:
+        base_font_size = 14        # أيام كثيرة جداً - خط صغير
+    else:
+        base_font_size = 12        # أيام ضخمة - خط صغير جداً
+    
+    # 2. تحديد أحجام الخطوط المختلفة
+    title_font_size = base_font_size + 6      # العنوان أكبر ب 6 درجات
+    header_font_size = base_font_size + 2      # عناوين الأعمدة أكبر ب درجتين
+    cell_font_size = base_font_size            # محتوى الخلايا بالحجم الأساسي
+    footer_font_size = base_font_size - 2      # التذييل أصغر ب درجتين
+    
+    # 3. تحديد ارتفاع الجدول ديناميكياً
+    # كل يوم يأخذ مساحة تعتمد على حجم الخط
+    row_height_factor = base_font_size / 10    # عامل ارتفاع الصف
+    base_height = 6                            # ارتفاع أساسي
+    fig_height = base_height + (num_days * row_height_factor * 0.8)
+    
+    # 4. تحديد عرض الجدول ديناميكياً (ثابت نسبياً)
+    fig_width = 14  # عرض ثابت مناسب
+    
+    # 5. تحديد عرض الأعمدة (نسب مئوية من عرض الجدول)
+    # الأعمدة متساوية في العرض
+    col_width = 0.22  # كل عمود يأخذ 22% من العرض
+    
+    # 6. تحديد ارتفاع الصفوف ديناميكياً
+    header_row_height = 0.18 * (base_font_size / 14)  # ارتفاع صف العنوان
+    amount_row_height = 0.15 * (base_font_size / 14)  # ارتفاع صف المقدار
+    data_row_height = 0.14 * (base_font_size / 14)     # ارتفاع صفوف البيانات
+    
+    # 7. تحديد درجة تكبير الجدول
+    scale_factor = base_font_size / 14  # عامل التكبير يعتمد على حجم الخط
+    
+    # ========== إنشاء الخطوط ==========
     
     arabic_font = fm.FontProperties(fname=font_path, size=cell_font_size)
     header_font = fm.FontProperties(fname=font_path, size=header_font_size, weight='bold')
     title_font = fm.FontProperties(fname=font_path, size=title_font_size, weight='bold')
+    footer_font = fm.FontProperties(fname=font_path, size=footer_font_size, style='italic')
     
-    # تحديد حجم الشكل بناءً على عدد الأيام
-    fig_height = max(8, num_days * 0.7 + 3)
-    fig, ax = plt.subplots(figsize=(16, fig_height))
+    # ========== إنشاء الشكل ==========
+    
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off')
     ax.axis('tight')
     
-    # تجهيز البيانات مع إعادة تشكيل النص العربي (بترتيب عكسي)
+    # تجهيز البيانات
     header = [
         reshape_arabic_text('مساء'),
         reshape_arabic_text('صباح'),
@@ -169,14 +208,11 @@ def create_table_image(df, amount, num_days):
         reshape_arabic_text('المقدار')
     ]
     
-    # صف المقدار
     amount_text = reshape_arabic_text(f'{amount}')
     amount_row = ['', '', '', amount_text]
     
-    # تجهيز جميع الصفوف
     table_data = [header, amount_row]
     
-    # إضافة بيانات الأيام
     for index, row in df.iterrows():
         row_data = [
             reshape_arabic_text(row['الفترة الثانية']),
@@ -186,23 +222,23 @@ def create_table_image(df, amount, num_days):
         ]
         table_data.append(row_data)
     
-    # إنشاء الجدول بألوان وتنسيق محسن
+    # إنشاء الجدول بأعمدة متساوية
     table = ax.table(cellText=table_data, loc='center', cellLoc='center', 
-                     colWidths=[0.25, 0.25, 0.25, 0.20])
+                     colWidths=[col_width, col_width, col_width, col_width])
     
-    # تنسيق الجدول بخطوط أكبر
+    # تنسيق الجدول
     table.auto_set_font_size(False)
     table.set_fontsize(cell_font_size)
-    table.scale(1.3, 2.2)  # تكبير الجدول
+    table.scale(1.2, scale_factor * 1.8)  # تكبير ديناميكي
     
-    # ألوان محسنة وتنسيق أجمل
+    # ألوان ثابتة
     colors = {
-        'header': '#2E86AB',  # أزرق جميل
-        'amount': '#F18F01',  # برتقالي
-        'day': '#A23B72',     # أرجواني
-        'row_even': '#F8F9FA',  # رمادي فاتح جداً
-        'row_odd': '#E9ECEF',    # رمادي فاتح
-        'border': '#212529',     # أسود داكن للحدود
+        'header': '#2E86AB',
+        'amount': '#F18F01',
+        'day': '#A23B72',
+        'row_even': '#F8F9FA',
+        'row_odd': '#E9ECEF',
+        'border': '#212529',
         'text_white': '#FFFFFF',
         'text_dark': '#212529'
     }
@@ -217,23 +253,26 @@ def create_table_image(df, amount, num_days):
             cell.set_facecolor(colors['header'])
             cell.set_text_props(weight='bold', color=colors['text_white'], 
                               fontproperties=header_font, ha='center')
-            cell.set_height(0.15)  # زيادة ارتفاع صف العنوان
+            cell.set_height(header_row_height)
             
         elif i == 1:  # صف المقدار
             if j == 3:  # عمود المقدار
                 cell.set_facecolor(colors['amount'])
                 cell.set_text_props(weight='bold', color=colors['text_dark'], 
                                   fontproperties=header_font, ha='center')
-                cell.set_height(0.12)
+                cell.set_height(amount_row_height)
             else:
                 cell.set_facecolor('#F0F0F0')
+                cell.set_height(amount_row_height)
                 
         else:  # باقي الصفوف
-            # تناوب الألوان للصفوف
+            # تناوب الألوان
             if i % 2 == 0:
                 cell.set_facecolor(colors['row_even'])
             else:
                 cell.set_facecolor(colors['row_odd'])
+            
+            cell.set_height(data_row_height)
                 
             if j == 2:  # عمود اليوم
                 cell.set_facecolor(colors['day'])
@@ -241,24 +280,22 @@ def create_table_image(df, amount, num_days):
                                   fontproperties=header_font, ha='center')
             else:
                 cell.set_text_props(color=colors['text_dark'])
-        
-        # محاذاة النص في الخلايا
-        cell.set_text_props(ha='center', va='center')
     
-    # إضافة عنوان رئيسي للجدول
-    title_text = reshape_arabic_text(f' جدول تقسيم المقدار {amount} على {num_days} أيام')
-    plt.suptitle(title_text, fontproperties=title_font, y=0.98, fontsize=title_font_size)
+    # عنوان رئيسي ديناميكي
+    title_text = reshape_arabic_text(f'📊 جدول تقسيم {amount} على {num_days} أيام')
+    title_y_position = 0.98 if num_days < 15 else 0.97
+    plt.suptitle(title_text, fontproperties=title_font, y=title_y_position)
     
-    # إضافة تذييل (اختياري)
-    footer_text = reshape_arabic_text(' بوت تقسيم المقدار - جميع الحقوق محفوظة ')
-    plt.figtext(0.5, 0.02, footer_text, fontproperties=arabic_font, 
-                ha='center', fontsize=10, style='italic', color='#6C757D')
+    # تذييل
+    footer_text = reshape_arabic_text('✨ بوت تقسيم المقدار ✨')
+    plt.figtext(0.5, 0.02, footer_text, fontproperties=footer_font, 
+                ha='center', color='#6C757D')
     
     # تحسين المسافات
     plt.tight_layout()
-    plt.subplots_adjust(top=0.92, bottom=0.05)
+    plt.subplots_adjust(top=0.92, bottom=0.05, left=0.03, right=0.97)
     
-    # حفظ الصورة في الذاكرة بجودة عالية
+    # حفظ الصورة
     img_bytes = io.BytesIO()
     plt.savefig(img_bytes, format='PNG', dpi=400, bbox_inches='tight', 
                 facecolor='white', edgecolor='none', pad_inches=0.3)
