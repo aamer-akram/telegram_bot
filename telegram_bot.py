@@ -193,7 +193,7 @@ def create_table_image(df, amount, num_days):
     # تنسيق الجدول بخطوط أكبر
     table.auto_set_font_size(False)
     table.set_fontsize(cell_font_size)
-    table.scale(3.3, 3.0)  # تكبير الجدول
+    table.scale(1.3, 2.0)  # تكبير الجدول
     
     # ألوان محسنة وتنسيق أجمل
     colors = {
