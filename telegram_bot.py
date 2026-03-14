@@ -367,6 +367,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "هذا البوت يقوم بتقسيم أي رقم تدخله على عدد محدد من الأيام\n"
         "مع توزيع الفترات (صباحاً ومساءً) بشكل دائري\n\n"
         "🔹 *الرجاء إدخال المقدار:*"
+        "/start - بدء محادثة جديدة\n"
+        "/help - عرض هذه المساعدة\n"
+        "/cancel - إلغاء العملية الحالية\n\n"
     )
     
     await update.message.reply_text(welcome_text, parse_mode='Markdown')
