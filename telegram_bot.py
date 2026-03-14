@@ -435,7 +435,8 @@ def main():
     # تشغيل البوت
     print("✅ البوت يعمل الآن... اضغط Ctrl+C للإيقاف")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
-# للاستخدام مع Render
-application = main  # إذا كان متغير التطبيق اسمه 'app' في الكود
+# للاستخدام مع Render - هذا هو المتغير الذي يبحث عنه Render
+application = main
+
 if __name__ == '__main__':
     main()
