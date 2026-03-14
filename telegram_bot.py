@@ -147,9 +147,9 @@ def create_table_image(df, amount, num_days):
         font_path = fm.findfont('Arial')
     
     # إعداد الخطوط بحجم أكبر
-    title_font_size = 20
-    header_font_size = 16
-    cell_font_size = 14
+    title_font_size = 32
+    header_font_size = 36
+    cell_font_size = 20
     
     arabic_font = fm.FontProperties(fname=font_path, size=cell_font_size)
     header_font = fm.FontProperties(fname=font_path, size=header_font_size, weight='bold')
