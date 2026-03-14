@@ -5,7 +5,7 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 import numpy as np
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 import io
 import os
@@ -28,9 +28,7 @@ AMOUNT, DAYS = range(2)
 user_data = {}
 
 def reshape_arabic_text(text):
-    """
-    إعادة تشكيل النص العربي للعرض بشكل صحيح
-    """
+    """إعادة تشكيل النص العربي للعرض بشكل صحيح"""
     if text and isinstance(text, str):
         try:
             reshaped_text = arabic_reshaper.reshape(text)
@@ -41,20 +39,12 @@ def reshape_arabic_text(text):
     return text
 
 def get_day_names(num_days):
-    """
-    الحصول على أسماء الأيام تبدأ من الأحد
-    
-    المعاملات:
-    num_days: عدد الأيام المطلوبة
-    """
-    # قائمة أيام الأسبوع كاملة
+    """الحصول على أسماء الأيام تبدأ من الأحد"""
     all_days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
     
     if num_days <= 7:
-        # إذا كان عدد الأيام 7 أو أقل، نأخذ أول num_days أيام
         return all_days[:num_days]
     else:
-        # إذا كان عدد الأيام أكثر من 7، نكرر الأيام بشكل دوري
         days = []
         for i in range(num_days):
             day_index = i % 7
@@ -62,72 +52,58 @@ def get_day_names(num_days):
         return days
 
 def create_schedule_table(amount, num_days):
-    """
-    إنشاء جدول تقسيم المقدار على عدد محدد من الأيام بطريقة دائرية
+    """إنشاء جدول تقسيم المقدار على عدد محدد من الأيام بطريقة دائرية"""
     
-    المعاملات:
-    amount: المقدار المراد تقسيمه
-    num_days: عدد الأيام
-    """
-    
-    # حساب قيمة الجزء الواحد (المقدار مقسوم على عدد الأيام)
+    # حساب قيمة الجزء الواحد
     part_size = amount / num_days
     
-    # الحصول على أسماء الأيام (تبدأ من الأحد)
+    # الحصول على أسماء الأيام
     days = get_day_names(num_days)
     
-    # حساب قيم الفترة الأولى والثانية لكل يوم
+    # حساب قيم الفترة الأولى والثانية
     first_period_values = []
     second_period_values = []
     
-    # حساب الإزاحة للنمط الدائري (نصف عدد الأيام تقريباً)
+    # حساب الإزاحة للنمط الدائري (نصف عدد الأيام)
     shift = num_days // 2
     
     for i in range(num_days):
-        # حساب قيم الفترة الأولى
+        # قيم الفترة الأولى
         first_start = int(i * part_size) + 1
         first_end = int((i + 1) * part_size)
-        
-        # التأكد من أن القيم ضمن النطاق الصحيح
-        if i == num_days - 1:  # اليوم الأخير
+        if i == num_days - 1:
             first_end = int(amount)
         
-        # حساب قيم الفترة الثانية (مع إزاحة دائرية)
+        # قيم الفترة الثانية (مع إزاحة دائرية)
         second_index = (i + shift) % num_days
-        
         second_start = int(second_index * part_size) + 1
         second_end = int((second_index + 1) * part_size)
-        
-        if second_index == num_days - 1:  # إذا كان اليوم الأخير
+        if second_index == num_days - 1:
             second_end = int(amount)
         
-        # تنسيق القيم كسلاسل نصية
         first_period_values.append(f"{first_start}-{first_end}")
         second_period_values.append(f"{second_start}-{second_end}")
     
-    # إنشاء DataFrame للجدول (مع ترتيب عكسي للأعمدة)
+    # إنشاء DataFrame
     data = {
-        'الفترة الثانية': second_period_values,
-        'الفترة الأولى': first_period_values,
-        'اليوم': days
+        ' ': [''] * num_days,  # عمود فارغ للتباعد
+        'اليوم': days,
+        'صباحاً': first_period_values,
+        'مساءً': second_period_values,
+        '  ': [''] * num_days   # عمود فارغ للتباعد
     }
     
     df = pd.DataFrame(data)
-    
     return df, amount, num_days
 
-def create_table_image(df, amount, num_days):
-    """
-    إنشاء صورة للجدول مع دعم اللغة العربية وعكس الاتجاه
-    وإرجاعها كـ BytesIO
-    """
+def create_beautiful_table_image(df, amount, num_days):
+    """إنشاء صورة جميلة للجدول بخط كبير وواضح"""
     
-    # البحث عن خط يدعم اللغة العربية
+    # البحث عن خط يدعم العربية
     font_path = None
     windows_font_paths = [
         'C:/Windows/Fonts/Arial.ttf',
         'C:/Windows/Fonts/trado.ttf',
-        'C:/Windows/Fonts/times.ttf',
         'C:/Windows/Fonts/tahoma.ttf',
         'C:/Windows/Fonts/Amiri.ttf'
     ]
@@ -143,159 +119,137 @@ def create_table_image(df, amount, num_days):
     if not font_path:
         font_path = fm.findfont('Arial')
     
-    # إعداد الخط للغة العربية
-    arabic_font = fm.FontProperties(fname=font_path, size=12)
-    title_font = fm.FontProperties(fname=font_path, size=16, weight='bold')
+    # إعداد الخطوط - خط كبير وواضح
+    header_font = fm.FontProperties(fname=font_path, size=18, weight='bold')  # رؤوس الأعمدة
+    cell_font = fm.FontProperties(fname=font_path, size=16)  # محتوى الجدول
+    title_font = fm.FontProperties(fname=font_path, size=22, weight='bold')  # العنوان
     
-    # تحديد حجم الشكل بناءً على عدد الأيام
-    fig_height = max(7, num_days * 0.5 + 3)
-    fig, ax = plt.subplots(figsize=(14, fig_height))
+    # تحديد حجم الصورة
+    fig_height = max(8, num_days * 0.6 + 3)
+    fig, ax = plt.subplots(figsize=(16, fig_height))
     ax.axis('off')
     ax.axis('tight')
     
-    # تجهيز البيانات مع إعادة تشكيل النص العربي (بترتيب عكسي)
-    header = [
-        reshape_arabic_text('الفترة الثانية'),
-        reshape_arabic_text('الفترة الأولى'),
+    # تجهيز البيانات
+    table_data = []
+    
+    # إضافة صف المقدار في الأعلى
+    table_data.append(['', reshape_arabic_text(f'المقدار: {amount}'), '', ''])
+    
+    # إضافة رؤوس الأعمدة
+    headers = [
+        reshape_arabic_text(''),
         reshape_arabic_text('اليوم'),
-        reshape_arabic_text('المقدار')
+        reshape_arabic_text('صباحاً'),
+        reshape_arabic_text('مساءً'),
+        reshape_arabic_text('')
     ]
+    table_data.append(headers)
     
-    # صف المقدار
-    amount_text = reshape_arabic_text(f'{amount}')
-    amount_row = ['', '', '', amount_text]
-    
-    # تجهيز جميع الصفوف
-    table_data = [header, amount_row]
-    
-    # إضافة بيانات الأيام
+    # إضافة البيانات
     for index, row in df.iterrows():
         row_data = [
-            reshape_arabic_text(row['الفترة الثانية']),
-            reshape_arabic_text(row['الفترة الأولى']),
+            '',
             reshape_arabic_text(row['اليوم']),
+            reshape_arabic_text(row['صباحاً']),
+            reshape_arabic_text(row['مساءً']),
             ''
         ]
         table_data.append(row_data)
     
     # إنشاء الجدول
-    table = ax.table(cellText=table_data, loc='center', cellLoc='center', 
-                     colWidths=[0.25, 0.25, 0.2, 0.2])
+    table = ax.table(
+        cellText=table_data,
+        loc='center',
+        cellLoc='center',
+        colWidths=[0.05, 0.25, 0.25, 0.25, 0.05]  # أعمدة جانبية صغيرة للتباعد
+    )
     
     # تنسيق الجدول
     table.auto_set_font_size(False)
-    table.set_fontsize(12)
-    table.scale(1.2, 1.5)
+    table.set_fontsize(14)
+    table.scale(1.5, 2.2)  # تكبير الخلايا
     
     # تنسيق الخلايا
     for (i, j), cell in table.get_celld().items():
-        cell.set_text_props(fontproperties=arabic_font, ha='center')
+        # تطبيق الخط
+        if i == 1:  # صف الرؤوس
+            cell.set_text_props(fontproperties=header_font, ha='center')
+        else:
+            cell.set_text_props(fontproperties=cell_font, ha='center')
         
-        if i == 0:  # صف العنوان
-            cell.set_facecolor('#4CAF50')
-            cell.set_text_props(weight='bold', color='white', 
-                              fontproperties=arabic_font, ha='center')
-        elif i == 1:  # صف المقدار
-            if j == 3:  # عمود المقدار
-                cell.set_facecolor('#FFA500')
-                cell.set_text_props(weight='bold', fontproperties=arabic_font, ha='center')
+        # ألوان الخلايا
+        if i == 0:  # صف المقدار
+            if j == 1:  # عمود المقدار فقط
+                cell.set_facecolor('#FFD700')  # ذهبي
+                cell.set_text_props(weight='bold', fontproperties=header_font)
             else:
                 cell.set_facecolor('#f0f0f0')
-        else:  # باقي الصفوف
-            if j == 2:  # عمود اليوم
-                cell.set_facecolor('#E3F2FD')
-                cell.set_text_props(weight='bold', fontproperties=arabic_font, ha='center')
-            else:
-                cell.set_facecolor('#F5F5F5')
         
+        elif i == 1:  # صف الرؤوس
+            cell.set_facecolor('#4CAF50')  # أخضر
+            cell.set_text_props(weight='bold', color='white', fontproperties=header_font)
+        
+        else:  # باقي الصفوف
+            if j == 1:  # عمود اليوم
+                cell.set_facecolor('#E3F2FD')  # أزرق فاتح
+                cell.set_text_props(weight='bold', fontproperties=cell_font)
+            elif j in [2, 3]:  # عمودي القيم
+                # تلوين متناوب للصفوف
+                if i % 2 == 0:
+                    cell.set_facecolor('#F5F5F5')  # رمادي فاتح جداً
+                else:
+                    cell.set_facecolor('#FFFFFF')  # أبيض
+            else:  # الأعمدة الجانبية الفارغة
+                cell.set_facecolor('#FFFFFF')
+                cell.set_text_props(color='white')  # إخفاء النص الفارغ
+        
+        # حدود الخلايا
         cell.set_edgecolor('#333333')
-        cell.set_linewidth(1)
+        cell.set_linewidth(1.5)
+        
+        # إضافة padding داخلي
+        cell.PAD = 0.1
     
-    # إضافة عنوان للجدول
-    title_text = reshape_arabic_text(f'جدول تقسيم المقدار ({amount}) على {num_days} أيام')
-    plt.suptitle(title_text, fontproperties=title_font, y=0.95)
+    # إضافة عنوان رئيسي
+    title_text = reshape_arabic_text(f'📊 جدول تقسيم {amount} على {num_days} أيام')
+    plt.suptitle(title_text, fontproperties=title_font, y=0.98, fontsize=22)
     
-    # حفظ الصورة في الذاكرة
+    # تحسين التباعد
+    plt.subplots_adjust(top=0.92, bottom=0.05)
+    
+    # حفظ الصورة بجودة عالية
     img_bytes = io.BytesIO()
-    plt.tight_layout()
-    plt.savefig(img_bytes, format='PNG', dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(
+        img_bytes,
+        format='PNG',
+        dpi=400,  # دقة عالية جداً
+        bbox_inches='tight',
+        facecolor='white',
+        edgecolor='none',
+        pad_inches=0.3
+    )
     plt.close()
     img_bytes.seek(0)
     
     return img_bytes
 
-def format_table_text(df, amount, num_days):
-    """
-    تنسيق الجدول كنص لإرساله عبر تيليغرام
-    """
-    text = f"📊 *جدول تقسيم المقدار ({amount}) على {num_days} أيام*\n"
-    text += "=" * 40 + "\n\n"
-    
-    # رؤوس الأعمدة
-    text += "`"
-    text += f"{'اليوم':<15} {'الفترة الأولى':<15} {'الفترة الثانية':<15}\n"
-    text += "-" * 45 + "\n"
-    
-    # البيانات
-    for index, row in df.iterrows():
-        text += f"{row['اليوم']:<15} {row['الفترة الأولى']:<15} {row['الفترة الثانية']:<15}\n"
-    
-    text += "`\n\n"
-    
-    # تفاصيل إضافية
-    part_size = amount / num_days
-    text += "📝 *تفاصيل التقسيم:*\n"
-    text += f"• قيمة الجزء الواحد: `{part_size:.2f}`\n"
-    text += f"• عدد الأيام: `{num_days}`\n"
-    text += f"• أول يوم: الأحد\n"
-    text += f"• نمط التوزيع: دائري (إزاحة {num_days // 2} أيام)\n"
-    
-    return text
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    بداية المحادثة - ترحيب وطلب المقدار
-    """
+    """بداية المحادثة"""
     user = update.effective_user
     welcome_text = (
         f"👋 أهلاً {user.first_name}!\n\n"
         "🤖 *بوت تقسيم المقدار*\n"
-        "هذا البوت يقوم بتقسيم أي رقم تدخله على عدد محدد من الأيام\n"
-        "مع توزيع الفترات (صباحاً ومساءً) بشكل دائري\n\n"
+        "سأقوم بتقسيم أي رقم تدخله على عدد محدد من الأيام\n"
+        "وسأرسل لك **صورة** بخط كبير وواضح 📸\n\n"
         "🔹 *الرجاء إدخال المقدار:*"
     )
     
     await update.message.reply_text(welcome_text, parse_mode='Markdown')
     return AMOUNT
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    عرض رسالة المساعدة
-    """
-    help_text = (
-        "🤖 *بوت تقسيم المقدار - مساعدة*\n\n"
-        "📌 *الأوامر المتاحة:*\n"
-        "/start - بدء محادثة جديدة\n"
-        "/help - عرض هذه المساعدة\n"
-        "/cancel - إلغاء العملية الحالية\n\n"
-        "📝 *كيفية الاستخدام:*\n"
-        "1️⃣ أرسل /start\n"
-        "2️⃣ أدخل المقدار (مثال: 150)\n"
-        "3️⃣ أدخل عدد الأيام (مثال: 7)\n"
-        "4️⃣ استلم الجدول كصورة ونص\n\n"
-        "✅ *مميزات البوت:*\n"
-        "• يدعم اللغة العربية بشكل كامل\n"
-        "• الأيام تبدأ دائماً من الأحد\n"
-        "• تقسيم دائري للفترات\n"
-        "• إرسال النتيجة كصورة ونص"
-    )
-    
-    await update.message.reply_text(help_text, parse_mode='Markdown')
-
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    إلغاء العملية الحالية
-    """
+    """إلغاء العملية"""
     await update.message.reply_text(
         "❌ تم إلغاء العملية.\n"
         "لبدء عملية جديدة أرسل /start"
@@ -303,9 +257,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    استقبال المقدار من المستخدم
-    """
+    """استقبال المقدار"""
     try:
         amount = float(update.message.text)
         
@@ -313,13 +265,11 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             await update.message.reply_text("❌ الرجاء إدخال مقدار أكبر من 0")
             return AMOUNT
         
-        # تخزين المقدار في بيانات المستخدم
         user_id = update.effective_user.id
         if user_id not in user_data:
             user_data[user_id] = {}
         user_data[user_id]['amount'] = amount
         
-        # طلب عدد الأيام
         await update.message.reply_text(
             f"✅ تم استلام المقدار: {amount}\n\n"
             "🔹 *الرجاء إدخال عدد الأيام:*"
@@ -332,9 +282,7 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return AMOUNT
 
 async def get_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    استقبال عدد الأيام وإنشاء الجدول
-    """
+    """استقبال عدد الأيام وإنشاء الصورة"""
     try:
         num_days = int(update.message.text)
         user_id = update.effective_user.id
@@ -352,33 +300,22 @@ async def get_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         # إنشاء الجدول
         df, amount, num_days = create_schedule_table(amount, num_days)
         
-        # إنشاء صورة الجدول
-        img_bytes = create_table_image(df, amount, num_days)
-        
-        # تنسيق النص
-        text_result = format_table_text(df, amount, num_days)
-        
-        # إرسال الصورة
-        await update.message.reply_photo(
-            photo=img_bytes,
-            caption="📸 *صورة الجدول*",
-            parse_mode='Markdown'
-        )
-        
-        # إرسال النص
-        await update.message.reply_text(
-            text_result,
-            parse_mode='Markdown'
-        )
+        # إنشاء الصورة الجميلة
+        img_bytes = create_beautiful_table_image(df, amount, num_days)
         
         # حذف رسالة الانتظار
         await wait_msg.delete()
         
-        # رسالة نجاح
+        # إرسال الصورة فقط (بدون نص)
+        await update.message.reply_photo(
+            photo=img_bytes,
+            caption=None  # بدون تعليق
+        )
+        
+        # رسالة نجاح بسيطة
         await update.message.reply_text(
-            "✅ *تمت العملية بنجاح!*\n"
-            "لبدء عملية جديدة أرسل /start",
-            parse_mode='Markdown'
+            "✅ تمت العملية بنجاح!\n"
+            "لبدء عملية جديدة أرسل /start"
         )
         
         # تنظيف بيانات المستخدم
@@ -394,26 +331,16 @@ async def get_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text(f"❌ حدث خطأ: {str(e)}")
         return ConversationHandler.END
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    معالجة الأخطاء
-    """
-    logger.error(f"حدث خطأ: {context.error}")
-
 def main():
-    """
-    الدالة الرئيسية لتشغيل البوت
-    """
-    # الحصول على التوكن من متغيرات البيئة
+    """الدالة الرئيسية"""
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     
     if not token:
-        print("❌ خطأ: لم يتم العثور على TELEGRAM_BOT_TOKEN في ملف .env")
-        print("📝 الرجاء إنشاء ملف .env وإضافة التوكن الخاص بك")
+        print("❌ خطأ: لم يتم العثور على TELEGRAM_BOT_TOKEN")
         return
     
     # إنشاء التطبيق
-    application = Application.builder().token(token).build()
+    app = Application.builder().token(token).build()
     
     # إضافة معالج المحادثة
     conv_handler = ConversationHandler(
@@ -423,22 +350,20 @@ def main():
             DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_days)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False  # مهم للمحادثات الطويلة
     )
     
-    application.add_handler(conv_handler)
-    application.add_handler(CommandHandler('help', help_command))
+    app.add_handler(conv_handler)
     
-    # إضافة معالج الأخطاء
-    application.add_error_handler(error_handler)
+    print("✅ البوت يعمل الآن... جاهز لاستقبال الأوامر")
     
     # تشغيل البوت
-    print("✅ البوت يعمل الآن... اضغط Ctrl+C للإيقاف")
-    application.run_polling(allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,  # مهم: يتجاهل أي تحديثات قديمة
-        poll_interval=1.0  # التحقق من الرسائل كل ثانية
-        )
-# للاستخدام مع Render - هذا هو المتغير الذي يبحث عنه Render
+    app.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True,
+        poll_interval=1.0
+    )
+
+# للاستخدام مع Railway
 application = main
 
 if __name__ == '__main__':
