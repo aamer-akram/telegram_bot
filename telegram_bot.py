@@ -217,14 +217,14 @@ def create_table_image(df, amount, num_days):
             cell.set_facecolor(colors['header'])
             cell.set_text_props(weight='bold', color=colors['text_white'], 
                               fontproperties=header_font, ha='center')
-            cell.set_height(0.18)  # زيادة ارتفاع صف العنوان
+            cell.set_height(0.15)  # زيادة ارتفاع صف العنوان
             
         elif i == 1:  # صف المقدار
             if j == 3:  # عمود المقدار
                 cell.set_facecolor(colors['amount'])
                 cell.set_text_props(weight='bold', color=colors['text_dark'], 
                                   fontproperties=header_font, ha='center')
-                cell.set_height(1.12)
+                cell.set_height(0.12)
             else:
                 cell.set_facecolor('#F0F0F0')
                 
