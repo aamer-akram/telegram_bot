@@ -118,14 +118,14 @@ def create_schedule_table(amount, num_days):
 
 def create_table_image(df, amount, num_days):
     """
-    إنشاء صورة ديناميكية للجدول - يتغير حجم الخط والجدول تلقائياً حسب عدد الأيام
+    إنشاء صورة ديناميكية للجدول مع ضمان أبعاد مناسبة لتليغرام
     """
     
     # البحث عن خط يدعم اللغة العربية
     font_path = None
     windows_font_paths = [
         'C:/Windows/Fonts/Arial.ttf',
-        'C:/Windows/Fonts/trado.ttf',  # Traditional Arabic
+        'C:/Windows/Fonts/trado.ttf',
         'C:/Windows/Fonts/times.ttf',
         'C:/Windows/Fonts/tahoma.ttf',
         'C:/Windows/Fonts/Amiri.ttf',
@@ -146,46 +146,70 @@ def create_table_image(df, amount, num_days):
     if not font_path:
         font_path = fm.findfont('Arial')
     
-    # ========== حسابات ديناميكية ==========
+    # ========== حسابات ديناميكية مع حدود آمنة ==========
     
-    # 1. تحديد حجم الخط الأساسي حسب عدد الأيام
+    # تحديد حجم الخط الأساسي حسب عدد الأيام (مع حد أقصى)
     if num_days <= 5:
-        base_font_size = 22        # أيام قليلة - خط كبير جداً
+        base_font_size = 20        # أيام قليلة - خط كبير
     elif num_days <= 10:
-        base_font_size = 18        # أيام متوسطة - خط كبير
+        base_font_size = 16        # أيام متوسطة - خط متوسط
     elif num_days <= 15:
-        base_font_size = 16        # أيام كثيرة - خط متوسط
+        base_font_size = 14        # أيام كثيرة - خط صغير
     elif num_days <= 20:
-        base_font_size = 14        # أيام كثيرة جداً - خط صغير
+        base_font_size = 12        # أيام كثيرة جداً - خط أصغر
     else:
-        base_font_size = 12        # أيام ضخمة - خط صغير جداً
+        base_font_size = 10        # أيام ضخمة - خط صغير جداً
     
-    # 2. تحديد أحجام الخطوط المختلفة
-    title_font_size = base_font_size + 6      # العنوان أكبر ب 6 درجات
-    header_font_size = base_font_size + 2      # عناوين الأعمدة أكبر ب درجتين
-    cell_font_size = base_font_size            # محتوى الخلايا بالحجم الأساسي
-    footer_font_size = base_font_size - 2      # التذييل أصغر ب درجتين
+    # أحجام الخطوط
+    title_font_size = base_font_size + 4
+    header_font_size = base_font_size + 2
+    cell_font_size = base_font_size
+    footer_font_size = max(8, base_font_size - 2)
     
-    # 3. تحديد ارتفاع الجدول ديناميكياً
-    # كل يوم يأخذ مساحة تعتمد على حجم الخط
-    row_height_factor = base_font_size / 10    # عامل ارتفاع الصف
-    base_height = 6                            # ارتفاع أساسي
-    fig_height = base_height + (num_days * row_height_factor * 0.8)
+    # ========== تحديد أبعاد آمنة لتليغرام ==========
     
-    # 4. تحديد عرض الجدول ديناميكياً (ثابت نسبياً)
-    fig_width = 14  # عرض ثابت مناسب
+    # تليغرام يقبل صور حتى 1280 بكسل في الارتفاع
+    # نحن نضمن عدم تجاوز هذا الحد
     
-    # 5. تحديد عرض الأعمدة (نسب مئوية من عرض الجدول)
-    # الأعمدة متساوية في العرض
-    col_width = 0.22  # كل عمود يأخذ 22% من العرض
+    # ارتفاع كل صف بالبكسل (تقريبي)
+    pixels_per_row = cell_font_size * 2.5
     
-    # 6. تحديد ارتفاع الصفوف ديناميكياً
-    header_row_height = 0.18 * (base_font_size / 14)  # ارتفاع صف العنوان
-    amount_row_height = 0.15 * (base_font_size / 14)  # ارتفاع صف المقدار
-    data_row_height = 0.14 * (base_font_size / 14)     # ارتفاع صفوف البيانات
+    # عدد الصفوف: 2 (عنوان + مقدار) + عدد الأيام
+    total_rows = 2 + num_days
     
-    # 7. تحديد درجة تكبير الجدول
-    scale_factor = base_font_size / 14  # عامل التكبير يعتمد على حجم الخط
+    # الارتفاع المقدر بالبكسل
+    estimated_height_px = total_rows * pixels_per_row + 200  # 200 بكسل للهوامش
+    
+    # إذا كان الارتفاع المقدر كبيراً جداً، نقلل حجم الخط
+    max_allowed_height = 1200  # حد آمن لتليغرام
+    
+    if estimated_height_px > max_allowed_height:
+        # نقلل حجم الخط بشكل تدريجي
+        reduction_factor = max_allowed_height / estimated_height_px
+        base_font_size = max(8, int(base_font_size * reduction_factor))
+        
+        # إعادة حساب الأحجام
+        title_font_size = base_font_size + 4
+        header_font_size = base_font_size + 2
+        cell_font_size = base_font_size
+        footer_font_size = max(8, base_font_size - 2)
+        
+        # إعادة حساب الارتفاع
+        pixels_per_row = cell_font_size * 2.5
+        estimated_height_px = total_rows * pixels_per_row + 200
+    
+    # تحويل الارتفاع من بكسل إلى إنش (لـ matplotlib)
+    # 1 إنش = 100 بكسل تقريباً في الدقة العادية
+    dpi = 100
+    fig_height_inch = estimated_height_px / dpi
+    
+    # تحديد العرض المناسب (نسبة ثابتة)
+    fig_width_inch = 12  # عرض ثابت مناسب
+    
+    # التأكد من عدم تجاوز الحد الأقصى للارتفاع بالإنش
+    max_height_inch = 12  # حد آمن
+    if fig_height_inch > max_height_inch:
+        fig_height_inch = max_height_inch
     
     # ========== إنشاء الخطوط ==========
     
@@ -196,7 +220,7 @@ def create_table_image(df, amount, num_days):
     
     # ========== إنشاء الشكل ==========
     
-    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    fig, ax = plt.subplots(figsize=(fig_width_inch, fig_height_inch))
     ax.axis('off')
     ax.axis('tight')
     
@@ -222,14 +246,16 @@ def create_table_image(df, amount, num_days):
         ]
         table_data.append(row_data)
     
-    # إنشاء الجدول بأعمدة متساوية
+    # إنشاء الجدول
     table = ax.table(cellText=table_data, loc='center', cellLoc='center', 
-                     colWidths=[col_width, col_width, col_width, col_width])
+                     colWidths=[0.22, 0.22, 0.22, 0.22])
     
     # تنسيق الجدول
     table.auto_set_font_size(False)
     table.set_fontsize(cell_font_size)
-    table.scale(1.2, scale_factor * 1.8)  # تكبير ديناميكي
+    
+    # تكبير معتدل
+    table.scale(1, 1.8)
     
     # ألوان ثابتة
     colors = {
@@ -247,44 +273,42 @@ def create_table_image(df, amount, num_days):
     for (i, j), cell in table.get_celld().items():
         cell.set_text_props(fontproperties=arabic_font, ha='center', va='center')
         cell.set_edgecolor(colors['border'])
-        cell.set_linewidth(1.5)
+        cell.set_linewidth(1)
         
         if i == 0:  # صف العنوان
             cell.set_facecolor(colors['header'])
             cell.set_text_props(weight='bold', color=colors['text_white'], 
-                              fontproperties=header_font, ha='center')
-            cell.set_height(header_row_height)
+                              fontproperties=header_font)
+            cell.set_height(0.15)
             
         elif i == 1:  # صف المقدار
             if j == 3:  # عمود المقدار
                 cell.set_facecolor(colors['amount'])
                 cell.set_text_props(weight='bold', color=colors['text_dark'], 
-                                  fontproperties=header_font, ha='center')
-                cell.set_height(amount_row_height)
+                                  fontproperties=header_font)
+                cell.set_height(0.12)
             else:
                 cell.set_facecolor('#F0F0F0')
-                cell.set_height(amount_row_height)
+                cell.set_height(0.12)
                 
         else:  # باقي الصفوف
-            # تناوب الألوان
             if i % 2 == 0:
                 cell.set_facecolor(colors['row_even'])
             else:
                 cell.set_facecolor(colors['row_odd'])
             
-            cell.set_height(data_row_height)
+            cell.set_height(0.1)
                 
             if j == 2:  # عمود اليوم
                 cell.set_facecolor(colors['day'])
                 cell.set_text_props(weight='bold', color=colors['text_white'], 
-                                  fontproperties=header_font, ha='center')
+                                  fontproperties=header_font)
             else:
                 cell.set_text_props(color=colors['text_dark'])
     
-    # عنوان رئيسي ديناميكي
+    # عنوان رئيسي
     title_text = reshape_arabic_text(f'📊 جدول تقسيم {amount} على {num_days} أيام')
-    title_y_position = 0.98 if num_days < 15 else 0.97
-    plt.suptitle(title_text, fontproperties=title_font, y=title_y_position)
+    plt.suptitle(title_text, fontproperties=title_font, y=0.98)
     
     # تذييل
     footer_text = reshape_arabic_text('✨ بوت تقسيم المقدار ✨')
@@ -295,10 +319,10 @@ def create_table_image(df, amount, num_days):
     plt.tight_layout()
     plt.subplots_adjust(top=0.92, bottom=0.05, left=0.03, right=0.97)
     
-    # حفظ الصورة
+    # حفظ الصورة بجودة معتدلة
     img_bytes = io.BytesIO()
-    plt.savefig(img_bytes, format='PNG', dpi=400, bbox_inches='tight', 
-                facecolor='white', edgecolor='none', pad_inches=0.3)
+    plt.savefig(img_bytes, format='PNG', dpi=100, bbox_inches='tight', 
+                facecolor='white', edgecolor='none', pad_inches=0.2)
     plt.close()
     img_bytes.seek(0)
     
