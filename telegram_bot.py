@@ -6,7 +6,7 @@ from bidi.algorithm import get_display
 import numpy as np
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
 import io
 import os
 from dotenv import load_dotenv
@@ -356,21 +356,165 @@ def format_table_text(df, amount, num_days):
     
     return text
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+# ========== دوال الأزرار الجديدة ==========
+
+async def start_with_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    بداية المحادثة - ترحيب وطلب المقدار
+    بداية المحادثة مع أزرار تفاعلية
     """
     user = update.effective_user
+    
+    # تصميم الأزرار
+    keyboard = [
+        [
+            InlineKeyboardButton("💰 تقسيم مبلغ", callback_data='split'),
+            InlineKeyboardButton("📊 إحصائياتي", callback_data='mystats')
+        ],
+        [
+            InlineKeyboardButton("⭐ المفضلة", callback_data='favorites'),
+            InlineKeyboardButton("❓ مساعدة", callback_data='help')
+        ],
+        [
+            InlineKeyboardButton("📱 مشاركة البوت", callback_data='share')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
     welcome_text = (
         f"👋 أهلاً {user.first_name}!\n\n"
         "🤖 *بوت تقسيم المقدار*\n"
-        "هذا البوت يقوم بتقسيم أي رقم تدخله على عدد محدد من الأيام\n"
-        "مع توزيع الفترات (صباحاً ومساءً) بشكل دائري\n\n"
-        "🔹 *الرجاء إدخال المقدار:*"
+        "اختر ما تريد فعله من الأزرار أدناه:"
     )
     
-    await update.message.reply_text(welcome_text, parse_mode='Markdown')
-    return AMOUNT
+    if update.message:
+        await update.message.reply_text(
+            welcome_text, 
+            reply_markup=reply_markup, 
+            parse_mode='Markdown'
+        )
+    else:
+        await update.callback_query.edit_message_text(
+            welcome_text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+
+def back_button():
+    """زر رجوع موحد"""
+    keyboard = [[InlineKeyboardButton("🔙 رجوع للقائمة", callback_data='back_to_main')]]
+    return InlineKeyboardMarkup(keyboard)
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    معالج الضغط على الأزرار
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    user = query.from_user
+    
+    if data == 'split':
+        # بدء عملية تقسيم جديدة
+        await query.edit_message_text(
+            "💰 *تقسيم مبلغ جديد*\n\n"
+            "🔹 الرجاء إدخال المقدار:",
+            parse_mode='Markdown'
+        )
+        # تخزين حالة المستخدم
+        context.user_data['state'] = 'waiting_for_amount'
+        return AMOUNT
+        
+    elif data == 'mystats':
+        # عرض إحصائيات المستخدم (بيانات تجريبية)
+        stats_text = (
+            f"📊 *إحصائيات {user.first_name}*\n\n"
+            "عدد العمليات: 15\n"
+            "أول استخدام: 2026-03-01\n"
+            "آخر استخدام: اليوم\n"
+            "⭐ أكثر مبلغ: 150"
+        )
+        await query.edit_message_text(
+            stats_text,
+            parse_mode='Markdown',
+            reply_markup=back_button()
+        )
+        
+    elif data == 'favorites':
+        # عرض المفضلة (بيانات تجريبية)
+        fav_text = "⭐ *قائمة المفضلة*\n\n"
+        fav_text += "1. 150 ÷ 7 أيام\n"
+        fav_text += "2. 200 ÷ 5 أيام\n"
+        fav_text += "3. 100 ÷ 3 أيام\n\n"
+        fav_text += "اختر رقماً لاستخدامه:"
+        
+        # أزرار المفضلة
+        fav_keyboard = [
+            [
+                InlineKeyboardButton("1️⃣ 150÷7", callback_data='fav_1'),
+                InlineKeyboardButton("2️⃣ 200÷5", callback_data='fav_2'),
+                InlineKeyboardButton("3️⃣ 100÷3", callback_data='fav_3')
+            ],
+            [InlineKeyboardButton("🔙 رجوع", callback_data='back_to_main')]
+        ]
+        await query.edit_message_text(
+            fav_text,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(fav_keyboard)
+        )
+        
+    elif data == 'help':
+        help_text = (
+            "❓ *مساعدة البوت*\n\n"
+            "📌 *كيفية الاستخدام:*\n"
+            "1️⃣ اضغط على 'تقسيم مبلغ'\n"
+            "2️⃣ أدخل المقدار (مثال: 150)\n"
+            "3️⃣ أدخل عدد الأيام (مثال: 7)\n"
+            "4️⃣ استلم النتيجة كصورة\n\n"
+            "📌 *الأوامر المتاحة:*\n"
+            "/start - القائمة الرئيسية\n"
+            "/cancel - إلغاء العملية"
+        )
+        await query.edit_message_text(
+            help_text,
+            parse_mode='Markdown',
+            reply_markup=back_button()
+        )
+        
+    elif data == 'share':
+        bot_username = (await context.bot.get_me()).username
+        share_text = f"🎯 جرب بوت تقسيم المقدار!\n@{bot_username}"
+        
+        share_keyboard = [
+            [InlineKeyboardButton("📱 مشاركة", switch_inline_query=share_text)],
+            [InlineKeyboardButton("🔙 رجوع", callback_data='back_to_main')]
+        ]
+        await query.edit_message_text(
+            "شارك البوت مع أصدقائك:",
+            reply_markup=InlineKeyboardMarkup(share_keyboard)
+        )
+        
+    elif data == 'back_to_main':
+        # العودة للقائمة الرئيسية
+        await start_with_buttons(update, context)
+        
+    elif data.startswith('fav_'):
+        # استخدام عنصر من المفضلة
+        fav_number = data.split('_')[1]
+        await query.edit_message_text(
+            f"✅ تم اختيار المفضلة رقم {fav_number}\n"
+            "سيتم التقسيم قريباً...",
+            reply_markup=back_button()
+        )
+
+# ========== الدوال المعدلة ==========
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    بداية المحادثة - ترحيب مع أزرار
+    """
+    await start_with_buttons(update, context)
+    return ConversationHandler.END
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -379,14 +523,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     help_text = (
         "🤖 *بوت تقسيم المقدار - مساعدة*\n\n"
         "📌 *الأوامر المتاحة:*\n"
-        "/start - بدء محادثة جديدة\n"
+        "/start - القائمة الرئيسية\n"
         "/help - عرض هذه المساعدة\n"
-        "/cancel - إلغاء العملية الحالية\n\n"
+        "/cancel - إلغاء العملية\n\n"
         "📝 *كيفية الاستخدام:*\n"
-        "1️⃣ أرسل /start\n"
+        "1️⃣ اضغط على 'تقسيم مبلغ'\n"
         "2️⃣ أدخل المقدار (مثال: 70)\n"
         "3️⃣ أدخل عدد الأيام (مثال: 7)\n"
-        "4️⃣ استلم الجدول كصورة فقط (بتصميم محسن)\n\n"
+        "4️⃣ استلم الجدول كصورة\n\n"
         "✅ *مميزات البوت:*\n"
         "• يدعم اللغة العربية بشكل كامل\n"
         "• الأيام تبدأ دائماً من الأحد\n"
@@ -400,15 +544,18 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     إلغاء العملية الحالية
     """
+    keyboard = [[InlineKeyboardButton("🏠 العودة للقائمة", callback_data='back_to_main')]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
     await update.message.reply_text(
-        "❌ تم إلغاء العملية.\n"
-        "لبدء عملية جديدة أرسل /start"
+        "❌ تم إلغاء العملية.",
+        reply_markup=reply_markup
     )
     return ConversationHandler.END
 
 async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    استقبال المقدار من المستخدم
+    استقبال المقدار من المستخدم مع زر إلغاء
     """
     try:
         amount = float(update.message.text)
@@ -423,10 +570,16 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             user_data[user_id] = {}
         user_data[user_id]['amount'] = amount
         
+        # زر إلغاء
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data='back_to_main')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
         # طلب عدد الأيام
         await update.message.reply_text(
             f"✅ تم استلام المقدار: {amount}\n\n"
-            "🔹 *الرجاء إدخال عدد الأيام:*"
+            "🔹 *الرجاء إدخال عدد الأيام:*",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
         )
         
         return DAYS
@@ -456,10 +609,10 @@ async def get_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         # إنشاء الجدول
         df, amount, num_days = create_schedule_table(amount, num_days)
         
-        # إنشاء صورة الجدول (بالتصميم المحسن)
+        # إنشاء صورة الجدول
         img_bytes = create_table_image(df, amount, num_days)
         
-        # إرسال الصورة فقط (بدون نص)
+        # إرسال الصورة فقط
         await update.message.reply_photo(
             photo=img_bytes,
             caption=f"📊 *نتيجة تقسيم {amount} على {num_days} أيام*",
@@ -469,10 +622,19 @@ async def get_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         # حذف رسالة الانتظار
         await wait_msg.delete()
         
-        # رسالة نجاح
+        # أزرار بعد النتيجة
+        result_keyboard = [
+            [
+                InlineKeyboardButton("💰 تقسيم جديد", callback_data='split'),
+                InlineKeyboardButton("🏠 القائمة", callback_data='back_to_main')
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(result_keyboard)
+        
         await update.message.reply_text(
             "✅ *تمت العملية بنجاح!*\n"
-            "لبدء عملية جديدة أرسل /start",
+            "ماذا تريد أن تفعل الآن؟",
+            reply_markup=reply_markup,
             parse_mode='Markdown'
         )
         
@@ -518,11 +680,12 @@ def main():
             DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_days)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False  # مهم للمحادثات الطويلة
+        per_message=False
     )
     
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler('help', help_command))
+    application.add_handler(CallbackQueryHandler(button_handler))
     
     # إضافة معالج الأخطاء
     application.add_error_handler(error_handler)
@@ -531,11 +694,11 @@ def main():
     print("✅ البوت يعمل الآن... اضغط Ctrl+C للإيقاف")
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,  # مهم: يتجاهل أي تحديثات قديمة
-        poll_interval=1.0  # التحقق من الرسائل كل ثانية
+        drop_pending_updates=True,
+        poll_interval=1.0
     )
 
-# للاستخدام مع Railway/Render - هذا هو المتغير الذي يبحث عنه
+# للاستخدام مع Railway/Render
 application = main
 
 if __name__ == '__main__':
