@@ -1,4 +1,3 @@
-from flask import app
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
@@ -437,6 +436,6 @@ def main():
     print("✅ البوت يعمل الآن... اضغط Ctrl+C للإيقاف")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 # للاستخدام مع Render
-application = app  # إذا كان متغير التطبيق اسمه 'app' في الكود
+application = main  # إذا كان متغير التطبيق اسمه 'app' في الكود
 if __name__ == '__main__':
     main()
