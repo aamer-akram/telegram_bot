@@ -1,3 +1,4 @@
+import math  # أضفنا هذه المكتبة للتقريب لأعلى
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
@@ -64,6 +65,7 @@ def get_day_names(num_days):
 def create_schedule_table(amount, num_days):
     """
     إنشاء جدول تقسيم المقدار على عدد محدد من الأيام بطريقة دائرية
+    مع تقريب القيم إلى أعلى رقم صحيح (Ceiling)
     
     المعاملات:
     amount: المقدار المراد تقسيمه
@@ -83,26 +85,42 @@ def create_schedule_table(amount, num_days):
     # حساب الإزاحة للنمط الدائري (نصف عدد الأيام تقريباً)
     shift = num_days // 2
     
+    # مصفوفة لتخزين نقاط البداية والنهاية لكل يوم
+    starts = []
+    ends = []
+    
+    # حساب نقاط التقسيم باستخدام التقريب لأعلى
     for i in range(num_days):
-        # حساب قيم الفترة الأولى
-        first_start = int(i * part_size) + 1
-        first_end = int((i + 1) * part_size)
+        if i == 0:
+            start = 1
+        else:
+            start = math.ceil(i * part_size) + 1
         
-        # التأكد من أن القيم ضمن النطاق الصحيح
-        if i == num_days - 1:  # اليوم الأخير
-            first_end = int(amount)
+        if i == num_days - 1:
+            end = int(amount)
+        else:
+            end = math.ceil((i + 1) * part_size)
         
-        # حساب قيم الفترة الثانية (مع إزاحة دائرية)
-        second_index = (i + shift) % num_days
-        
-        second_start = int(second_index * part_size) + 1
-        second_end = int((second_index + 1) * part_size)
-        
-        if second_index == num_days - 1:  # إذا كان اليوم الأخير
-            second_end = int(amount)
-        
-        # تنسيق القيم كسلاسل نصية
+        starts.append(start)
+        ends.append(end)
+    
+    # التأكد من عدم وجود تداخل أو فجوات
+    for i in range(1, num_days):
+        if starts[i] > ends[i-1] + 1:
+            # هناك فجوة - نعدل البداية
+            starts[i] = ends[i-1] + 1
+    
+    # حساب قيم الفترة الأولى والثانية
+    for i in range(num_days):
+        # الفترة الأولى (التوزيع العادي)
+        first_start = starts[i]
+        first_end = ends[i]
         first_period_values.append(f"{first_start}-{first_end}")
+        
+        # الفترة الثانية (مع إزاحة دائرية)
+        second_index = (i + shift) % num_days
+        second_start = starts[second_index]
+        second_end = ends[second_index]
         second_period_values.append(f"{second_start}-{second_end}")
     
     # إنشاء DataFrame للجدول (مع ترتيب عكسي للأعمدة)
@@ -113,6 +131,11 @@ def create_schedule_table(amount, num_days):
     }
     
     df = pd.DataFrame(data)
+    
+    # طباعة معلومات للتصحيح
+    logger.info(f"المقدار: {amount}, الأيام: {num_days}")
+    logger.info(f"حسب الرياضيات: part_size = {part_size}")
+    logger.info(f"التوزيع: {list(zip(starts, ends))}")
     
     return df, amount, num_days
 
@@ -394,7 +417,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• يدعم اللغة العربية بشكل كامل\n"
         "• الأيام تبدأ دائماً من الأحد\n"
         "• تقسيم دائري للفترات\n"
-        "• إرسال النتيجة كصورة بجودة عالية"
+        "• إرسال النتيجة كصورة بجودة عالية\n"
+        "• تقريب الأرقام إلى أعلى قيمة"
     )
     
     await update.message.reply_text(help_text, parse_mode='Markdown')
