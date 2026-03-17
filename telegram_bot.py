@@ -11,6 +11,12 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import io
 import os
 from dotenv import load_dotenv
+# أضف هذا السطر
+from database import (
+    init_database, get_or_create_user, save_operation,
+    get_user_operations, add_favorite, get_favorites,
+    delete_favorite, get_bot_stats
+)
 
 # تحميل متغيرات البيئة
 load_dotenv()
@@ -524,6 +530,15 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     logger.error(f"حدث خطأ: {context.error}")
 
 def main():
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    
+    if not token:
+        print("❌ خطأ: لم يتم العثور على TELEGRAM_BOT_TOKEN")
+        return
+    
+    # تهيئة قاعدة البيانات
+    init_database()
+    print("✅ قاعدة البيانات جاهزة")
     """
     الدالة الرئيسية لتشغيل البوت
     """
