@@ -50,16 +50,14 @@ if not ADMIN_ID:
     logger.warning("⚠️ لم يتم العثور على ADMIN_ID في المتغيرات البيئية. أوامر المسؤول لن تعمل.")
 else:
     try:
-        ADMIN_ID = int(ADMIN_ID)  # تحويل إلى رقم صحيح
+        ADMIN_ID = int(ADMIN_ID)
         logger.info(f"✅ تم تحميل ADMIN_ID: {ADMIN_ID}")
     except ValueError:
         logger.error("❌ ADMIN_ID يجب أن يكون رقماً صحيحاً")
         ADMIN_ID = None
 
 def reshape_arabic_text(text):
-    """
-    إعادة تشكيل النص العربي للعرض بشكل صحيح
-    """
+    """إعادة تشكيل النص العربي للعرض بشكل صحيح"""
     if text and isinstance(text, str):
         try:
             reshaped_text = arabic_reshaper.reshape(text)
@@ -70,9 +68,7 @@ def reshape_arabic_text(text):
     return text
 
 def get_day_names(num_days):
-    """
-    الحصول على أسماء الأيام تبدأ من الأحد
-    """
+    """الحصول على أسماء الأيام تبدأ من الأحد"""
     all_days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
     
     if num_days <= 7:
@@ -85,10 +81,7 @@ def get_day_names(num_days):
         return days
 
 def create_schedule_table(amount, num_days):
-    """
-    إنشاء جدول تقسيم المقدار على عدد محدد من الأيام بطريقة دائرية
-    مع تقريب القيم إلى أعلى رقم صحيح
-    """
+    """إنشاء جدول تقسيم المقدار على عدد محدد من الأيام بطريقة دائرية"""
     part_size = amount / num_days
     days = get_day_names(num_days)
     first_period_values = []
@@ -136,9 +129,7 @@ def create_schedule_table(amount, num_days):
     return df, amount, num_days
 
 def create_table_image(df, amount, num_days):
-    """
-    إنشاء صورة ديناميكية للجدول مع ضمان أبعاد مناسبة لتليغرام
-    """
+    """إنشاء صورة ديناميكية للجدول مع ضمان أبعاد مناسبة لتليغرام"""
     font_path = None
     windows_font_paths = [
         'C:/Windows/Fonts/Arial.ttf',
@@ -304,7 +295,7 @@ def create_table_image(df, amount, num_days):
     
     return img_bytes
 
-# ========== أوامر قاعدة البيانات الجديدة ==========
+# ========== أوامر قاعدة البيانات ==========
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض ملف المستخدم وإحصائياته من قاعدة البيانات"""
@@ -352,7 +343,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إحصائيات البوت (للمسؤول فقط)"""
-    # التحقق من وجود ADMIN_ID
     if not ADMIN_ID:
         await update.message.reply_text("❌ لم يتم تعيين معرف المسؤول")
         return
@@ -634,20 +624,25 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'cancel_clear':
         await query.edit_message_text("✅ تم إلغاء المسح", parse_mode='Markdown')
 
-# أوامر البوت الأساسية
+# ========== الأوامر الأساسية ==========
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     بداية المحادثة - ترحيب وطلب المقدار
     """
     user = update.effective_user
+    logger.info(f"مستخدم جديد: {user.first_name} (ID: {user.id})")
     
     # حفظ المستخدم في قاعدة البيانات
-    get_or_create_user(
-        user_id=user.id,
-        username=user.username,
-        first_name=user.first_name,
-        last_name=user.last_name
-    )
+    try:
+        get_or_create_user(
+            user_id=user.id,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name
+        )
+    except Exception as e:
+        logger.error(f"خطأ في حفظ المستخدم: {e}")
     
     welcome_text = (
         f"👋 أهلاً {user.first_name}!\n\n"
@@ -667,9 +662,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return AMOUNT
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    عرض رسالة المساعدة
-    """
+    """عرض رسالة المساعدة"""
     help_text = (
         "🤖 *بوت تقسيم المقدار - مساعدة*\n\n"
         "📌 *الأوامر المتاحة:*\n"
@@ -697,9 +690,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    إلغاء العملية الحالية
-    """
+    """إلغاء العملية الحالية"""
     await update.message.reply_text(
         "❌ تم إلغاء العملية.\n"
         "لبدء عملية جديدة أرسل /start"
@@ -707,9 +698,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    استقبال المقدار من المستخدم
-    """
+    """استقبال المقدار من المستخدم"""
     try:
         amount = float(update.message.text)
         
@@ -735,9 +724,7 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return AMOUNT
 
 async def get_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    استقبال عدد الأيام وإنشاء الجدول
-    """
+    """استقبال عدد الأيام وإنشاء الجدول"""
     try:
         num_days = int(update.message.text)
         user_id = update.effective_user.id
@@ -789,29 +776,33 @@ async def get_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return ConversationHandler.END
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    معالجة الأخطاء
-    """
+    """معالجة الأخطاء"""
     logger.error(f"حدث خطأ: {context.error}")
 
 def main():
-    """
-    الدالة الرئيسية لتشغيل البوت
-    """
+    """الدالة الرئيسية لتشغيل البوت"""
     if not TELEGRAM_TOKEN:
         print("❌ خطأ: لم يتم العثور على TELEGRAM_BOT_TOKEN في المتغيرات البيئية")
-        print("📝 الرجاء إضافة TELEGRAM_BOT_TOKEN في Railway Variables")
         return
     
     # تهيئة قاعدة البيانات
     print("🔄 جاري تهيئة قاعدة البيانات...")
-    if init_database():
-        print("✅ قاعدة البيانات جاهزة")
-    else:
-        print("⚠️ تحذير: فشل الاتصال بقاعدة البيانات، سيستمر البوت بدون حفظ بيانات")
+    try:
+        if init_database():
+            print("✅ قاعدة البيانات جاهزة")
+        else:
+            print("⚠️ تحذير: فشل الاتصال بقاعدة البيانات، سيستمر البوت بدون حفظ بيانات")
+    except Exception as e:
+        print(f"⚠️ خطأ في قاعدة البيانات: {e}")
     
     # إنشاء التطبيق
     application = Application.builder().token(TELEGRAM_TOKEN).build()
+    
+    # معالج اختباري للتأكد من عمل البوت
+    async def test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await update.message.reply_text("✅ البوت يعمل بشكل طبيعي!")
+    
+    application.add_handler(CommandHandler('test', test_handler))
     
     # إضافة معالج المحادثة (للأمر start)
     conv_handler = ConversationHandler(
@@ -821,7 +812,8 @@ def main():
             DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_days)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False
+        per_message=False,
+        name="main_conversation"
     )
     
     application.add_handler(conv_handler)
@@ -838,7 +830,7 @@ def main():
     # إضافة معالج الأزرار التفاعلية
     application.add_handler(CallbackQueryHandler(callback_handler))
     
-    # إضافة معالج الأخطاء
+    # إضافة معالج للأخطاء
     application.add_error_handler(error_handler)
     
     # تشغيل البوت
