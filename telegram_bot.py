@@ -1,4 +1,4 @@
-import math  # أضفنا هذه المكتبة للتقريب لأعلى
+import math
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
@@ -7,10 +7,15 @@ from bidi.algorithm import get_display
 import numpy as np
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, filters, 
+    ContextTypes, ConversationHandler, CallbackQueryHandler
+)
 import io
 import os
 from dotenv import load_dotenv
+import sqlite3
+import datetime
 
 # تحميل متغيرات البيئة
 load_dotenv()
@@ -28,6 +33,187 @@ AMOUNT, DAYS = range(2)
 # تخزين بيانات المستخدمين مؤقتاً
 user_data = {}
 
+# ========== دوال قاعدة البيانات (SQLite) ==========
+
+DB_FILE = 'bot_data.db'
+
+def get_db_connection():
+    """إنشاء اتصال بقاعدة البيانات"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except Exception as e:
+        logger.error(f"خطأ في الاتصال بقاعدة البيانات: {e}")
+        return None
+
+def init_database():
+    """إنشاء الجداول إذا لم تكن موجودة"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return False
+        
+        cursor = conn.cursor()
+        
+        # جدول المستخدمين
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                first_seen TIMESTAMP,
+                last_active TIMESTAMP,
+                total_operations INTEGER DEFAULT 0
+            )
+        ''')
+        
+        # جدول العمليات
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS operations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                amount REAL,
+                num_days INTEGER,
+                result_data TEXT,
+                created_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        logger.info("✅ قاعدة البيانات جاهزة")
+        return True
+    except Exception as e:
+        logger.error(f"خطأ في إنشاء قاعدة البيانات: {e}")
+        return False
+
+def get_or_create_user(user_id, username, first_name, last_name=None):
+    """الحصول على المستخدم أو إنشائه"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return False
+        
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = cursor.fetchone()
+        
+        now = datetime.datetime.now()
+        
+        if not user:
+            cursor.execute('''
+                INSERT INTO users (user_id, username, first_name, last_name, first_seen, last_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, username, first_name, last_name, now, now))
+            logger.info(f"✅ مستخدم جديد: {first_name}")
+        else:
+            cursor.execute('''
+                UPDATE users SET last_active = ?, username = ?, first_name = ?, last_name = ?
+                WHERE user_id = ?
+            ''', (now, username, first_name, last_name, user_id))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"خطأ في get_or_create_user: {e}")
+        return False
+
+def save_operation(user_id, amount, num_days, result_data=""):
+    """حفظ عملية في السجل"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return False
+        
+        cursor = conn.cursor()
+        now = datetime.datetime.now()
+        
+        cursor.execute('''
+            INSERT INTO operations (user_id, amount, num_days, result_data, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (user_id, amount, num_days, result_data, now))
+        
+        cursor.execute('''
+            UPDATE users SET total_operations = total_operations + 1
+            WHERE user_id = ?
+        ''', (user_id,))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"خطأ في save_operation: {e}")
+        return False
+
+def get_user_operations(user_id, limit=10):
+    """استرجاع آخر عمليات المستخدم"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return []
+        
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT amount, num_days, created_at FROM operations
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        ''', (user_id, limit))
+        
+        operations = cursor.fetchall()
+        conn.close()
+        return operations
+    except Exception as e:
+        logger.error(f"خطأ في get_user_operations: {e}")
+        return []
+
+def get_bot_stats():
+    """إحصائيات عامة عن البوت"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return {
+                'total_users': 0,
+                'total_operations': 0,
+                'active_today': 0
+            }
+        
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_users = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM operations")
+        total_ops = cursor.fetchone()[0]
+        
+        cursor.execute('''
+            SELECT COUNT(*) FROM users 
+            WHERE last_active > datetime('now', '-1 day')
+        ''')
+        active_today = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            'total_users': total_users,
+            'total_operations': total_ops,
+            'active_today': active_today
+        }
+    except Exception as e:
+        logger.error(f"خطأ في get_bot_stats: {e}")
+        return {
+            'total_users': 0,
+            'total_operations': 0,
+            'active_today': 0
+        }
+
+# ========== دوال البوت الأساسية ==========
+
 def reshape_arabic_text(text):
     """
     إعادة تشكيل النص العربي للعرض بشكل صحيح
@@ -44,18 +230,12 @@ def reshape_arabic_text(text):
 def get_day_names(num_days):
     """
     الحصول على أسماء الأيام تبدأ من الأحد
-    
-    المعاملات:
-    num_days: عدد الأيام المطلوبة
     """
-    # قائمة أيام الأسبوع كاملة
     all_days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
     
     if num_days <= 7:
-        # إذا كان عدد الأيام 7 أو أقل، نأخذ أول num_days أيام
         return all_days[:num_days]
     else:
-        # إذا كان عدد الأيام أكثر من 7، نكرر الأيام بشكل دوري
         days = []
         for i in range(num_days):
             day_index = i % 7
@@ -65,31 +245,17 @@ def get_day_names(num_days):
 def create_schedule_table(amount, num_days):
     """
     إنشاء جدول تقسيم المقدار على عدد محدد من الأيام بطريقة دائرية
-    مع تقريب القيم إلى أعلى رقم صحيح (Ceiling)
-    
-    المعاملات:
-    amount: المقدار المراد تقسيمه
-    num_days: عدد الأيام
+    مع تقريب القيم إلى أعلى رقم صحيح
     """
-    
-    # حساب قيمة الجزء الواحد (المقدار مقسوم على عدد الأيام)
     part_size = amount / num_days
-    
-    # الحصول على أسماء الأيام (تبدأ من الأحد)
     days = get_day_names(num_days)
-    
-    # حساب قيم الفترة الأولى والثانية لكل يوم
     first_period_values = []
     second_period_values = []
-    
-    # حساب الإزاحة للنمط الدائري (نصف عدد الأيام تقريباً)
     shift = num_days // 2
     
-    # مصفوفة لتخزين نقاط البداية والنهاية لكل يوم
     starts = []
     ends = []
     
-    # حساب نقاط التقسيم باستخدام التقريب لأعلى
     for i in range(num_days):
         if i == 0:
             start = 1
@@ -104,26 +270,20 @@ def create_schedule_table(amount, num_days):
         starts.append(start)
         ends.append(end)
     
-    # التأكد من عدم وجود تداخل أو فجوات
     for i in range(1, num_days):
         if starts[i] > ends[i-1] + 1:
-            # هناك فجوة - نعدل البداية
             starts[i] = ends[i-1] + 1
     
-    # حساب قيم الفترة الأولى والثانية
     for i in range(num_days):
-        # الفترة الأولى (التوزيع العادي)
         first_start = starts[i]
         first_end = ends[i]
         first_period_values.append(f"{first_start}-{first_end}")
         
-        # الفترة الثانية (مع إزاحة دائرية)
         second_index = (i + shift) % num_days
         second_start = starts[second_index]
         second_end = ends[second_index]
         second_period_values.append(f"{second_start}-{second_end}")
     
-    # إنشاء DataFrame للجدول (مع ترتيب عكسي للأعمدة)
     data = {
         'الفترة الثانية': second_period_values,
         'الفترة الأولى': first_period_values,
@@ -132,9 +292,7 @@ def create_schedule_table(amount, num_days):
     
     df = pd.DataFrame(data)
     
-    # طباعة معلومات للتصحيح
     logger.info(f"المقدار: {amount}, الأيام: {num_days}")
-    logger.info(f"حسب الرياضيات: part_size = {part_size}")
     logger.info(f"التوزيع: {list(zip(starts, ends))}")
     
     return df, amount, num_days
@@ -143,8 +301,6 @@ def create_table_image(df, amount, num_days):
     """
     إنشاء صورة ديناميكية للجدول مع ضمان أبعاد مناسبة لتليغرام
     """
-    
-    # البحث عن خط يدعم اللغة العربية
     font_path = None
     windows_font_paths = [
         'C:/Windows/Fonts/Arial.ttf',
@@ -169,85 +325,54 @@ def create_table_image(df, amount, num_days):
     if not font_path:
         font_path = fm.findfont('Arial')
     
-    # ========== حسابات ديناميكية مع حدود آمنة ==========
-    
-    # تحديد حجم الخط الأساسي حسب عدد الأيام (مع حد أقصى)
     if num_days <= 5:
-        base_font_size = 20        # أيام قليلة - خط كبير
+        base_font_size = 20
     elif num_days <= 10:
-        base_font_size = 16        # أيام متوسطة - خط متوسط
+        base_font_size = 16
     elif num_days <= 15:
-        base_font_size = 14        # أيام كثيرة - خط صغير
+        base_font_size = 14
     elif num_days <= 20:
-        base_font_size = 12        # أيام كثيرة جداً - خط أصغر
+        base_font_size = 12
     else:
-        base_font_size = 10        # أيام ضخمة - خط صغير جداً
+        base_font_size = 10
     
-    # أحجام الخطوط
     title_font_size = base_font_size + 10
     header_font_size = base_font_size + 10
     cell_font_size = base_font_size + 8
     footer_font_size = max(8, base_font_size - 2)
     
-    # ========== تحديد أبعاد آمنة لتليغرام ==========
-    
-    # تليغرام يقبل صور حتى 1280 بكسل في الارتفاع
-    # نحن نضمن عدم تجاوز هذا الحد
-    
-    # ارتفاع كل صف بالبكسل (تقريبي)
     pixels_per_row = cell_font_size * 2.5
-    
-    # عدد الصفوف: 2 (عنوان + مقدار) + عدد الأيام
     total_rows = 2 + num_days
-    
-    # الارتفاع المقدر بالبكسل
-    estimated_height_px = total_rows * pixels_per_row + 200  # 200 بكسل للهوامش
-    
-    # إذا كان الارتفاع المقدر كبيراً جداً، نقلل حجم الخط
-    max_allowed_height = 1200  # حد آمن لتليغرام
+    estimated_height_px = total_rows * pixels_per_row + 200
+    max_allowed_height = 1200
     
     if estimated_height_px > max_allowed_height:
-        # نقلل حجم الخط بشكل تدريجي
         reduction_factor = max_allowed_height / estimated_height_px
         base_font_size = max(8, int(base_font_size * reduction_factor))
-        
-        # إعادة حساب الأحجام
         title_font_size = base_font_size + 4
         header_font_size = base_font_size + 2
         cell_font_size = base_font_size
         footer_font_size = max(8, base_font_size - 2)
-        
-        # إعادة حساب الارتفاع
         pixels_per_row = cell_font_size * 2.5
         estimated_height_px = total_rows * pixels_per_row + 200
     
-    # تحويل الارتفاع من بكسل إلى إنش (لـ matplotlib)
-    # 1 إنش = 100 بكسل تقريباً في الدقة العادية
     dpi = 100
     fig_height_inch = estimated_height_px / dpi
+    fig_width_inch = 12
+    max_height_inch = 12
     
-    # تحديد العرض المناسب (نسبة ثابتة)
-    fig_width_inch = 12  # عرض ثابت مناسب
-    
-    # التأكد من عدم تجاوز الحد الأقصى للارتفاع بالإنش
-    max_height_inch = 12  # حد آمن
     if fig_height_inch > max_height_inch:
         fig_height_inch = max_height_inch
-    
-    # ========== إنشاء الخطوط ==========
     
     arabic_font = fm.FontProperties(fname=font_path, size=cell_font_size)
     header_font = fm.FontProperties(fname=font_path, size=header_font_size, weight='bold')
     title_font = fm.FontProperties(fname=font_path, size=title_font_size, weight='bold')
     footer_font = fm.FontProperties(fname=font_path, size=footer_font_size, style='italic')
     
-    # ========== إنشاء الشكل ==========
-    
     fig, ax = plt.subplots(figsize=(fig_width_inch, fig_height_inch))
     ax.axis('off')
     ax.axis('tight')
     
-    # تجهيز البيانات
     header = [
         reshape_arabic_text('مساء'),
         reshape_arabic_text('صباح'),
@@ -269,18 +394,13 @@ def create_table_image(df, amount, num_days):
         ]
         table_data.append(row_data)
     
-    # إنشاء الجدول
     table = ax.table(cellText=table_data, loc='center', cellLoc='center', 
                      colWidths=[0.22, 0.22, 0.22, 0.22])
     
-    # تنسيق الجدول
     table.auto_set_font_size(False)
     table.set_fontsize(cell_font_size)
-    
-    # تكبير معتدل
     table.scale(1, 1.8)
     
-    # ألوان ثابتة
     colors = {
         'header': '#2E86AB',
         'amount': '#F18F01',
@@ -292,20 +412,19 @@ def create_table_image(df, amount, num_days):
         'text_dark': '#212529'
     }
     
-    # تنسيق الخلايا
     for (i, j), cell in table.get_celld().items():
         cell.set_text_props(fontproperties=arabic_font, ha='center', va='center')
         cell.set_edgecolor(colors['border'])
         cell.set_linewidth(1)
         
-        if i == 0:  # صف العنوان
+        if i == 0:
             cell.set_facecolor(colors['header'])
             cell.set_text_props(weight='bold', color=colors['text_white'], 
                               fontproperties=header_font)
             cell.set_height(0.15)
             
-        elif i == 1:  # صف المقدار
-            if j == 3:  # عمود المقدار
+        elif i == 1:
+            if j == 3:
                 cell.set_facecolor(colors['amount'])
                 cell.set_text_props(weight='bold', color=colors['text_dark'], 
                                   fontproperties=header_font)
@@ -314,7 +433,7 @@ def create_table_image(df, amount, num_days):
                 cell.set_facecolor('#F0F0F0')
                 cell.set_height(0.12)
                 
-        else:  # باقي الصفوف
+        else:
             if i % 2 == 0:
                 cell.set_facecolor(colors['row_even'])
             else:
@@ -322,27 +441,23 @@ def create_table_image(df, amount, num_days):
             
             cell.set_height(0.1)
                 
-            if j == 2:  # عمود اليوم
+            if j == 2:
                 cell.set_facecolor(colors['day'])
                 cell.set_text_props(weight='bold', color=colors['text_white'], 
                                   fontproperties=header_font)
             else:
                 cell.set_text_props(color=colors['text_dark'])
     
-    # عنوان رئيسي
     title_text = reshape_arabic_text(f' جدول تقسيم {amount} على {num_days} أيام')
     plt.suptitle(title_text, fontproperties=title_font, y=0.98)
     
-    # تذييل
     footer_text = reshape_arabic_text(' بوت تقسيم المقدار ')
     plt.figtext(0.5, 0.02, footer_text, fontproperties=footer_font, 
                 ha='center', color='#6C757D')
     
-    # تحسين المسافات
     plt.tight_layout()
     plt.subplots_adjust(top=0.92, bottom=0.05, left=0.03, right=0.97)
     
-    # حفظ الصورة بجودة معتدلة
     img_bytes = io.BytesIO()
     plt.savefig(img_bytes, format='PNG', dpi=100, bbox_inches='tight', 
                 facecolor='white', edgecolor='none', pad_inches=0.2)
@@ -351,52 +466,77 @@ def create_table_image(df, amount, num_days):
     
     return img_bytes
 
-def format_table_text(df, amount, num_days):
-    """
-    تنسيق الجدول كنص لإرساله عبر تيليغرام (ملاحظة: لم نعد نستخدمه)
-    """
-    text = f"📊 *جدول تقسيم المقدار ({amount}) على {num_days} أيام*\n"
-    text += "=" * 40 + "\n\n"
-    
-    # رؤوس الأعمدة
-    text += "`"
-    text += f"{'اليوم':<15} {'الفترة الأولى':<15} {'الفترة الثانية':<15}\n"
-    text += "-" * 45 + "\n"
-    
-    # البيانات
-    for index, row in df.iterrows():
-        text += f"{row['اليوم']:<15} {row['الفترة الأولى']:<15} {row['الفترة الثانية']:<15}\n"
-    
-    text += "`\n\n"
-    
-    # تفاصيل إضافية
-    part_size = amount / num_days
-    text += "📝 *تفاصيل التقسيم:*\n"
-    text += f"• قيمة الجزء الواحد: `{part_size:.2f}`\n"
-    text += f"• عدد الأيام: `{num_days}`\n"
-    text += f"• أول يوم: الأحد\n"
-    text += f"• نمط التوزيع: دائري (إزاحة {num_days // 2} أيام)\n"
-    
-    return text
+# ========== أوامر البوت ==========
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     بداية المحادثة - ترحيب وطلب المقدار
     """
     user = update.effective_user
+    
+    # تسجيل المستخدم في قاعدة البيانات
+    get_or_create_user(
+        user_id=user.id,
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name
+    )
+    
     welcome_text = (
         f"👋 أهلاً {user.first_name}!\n\n"
         "🤖 *بوت تقسيم المقدار*\n"
         "هذا البوت يقوم بتقسيم أي رقم تدخله على عدد محدد من الأيام\n"
         "مع توزيع الفترات (صباحاً ومساءً) بشكل دائري\n\n"
         "/start - بدء محادثة جديدة\n"
-        "/help - عرض هذه المساعدة\n"
-        "/cancel - إلغاء العملية الحالية\n\n"
+        "/help - عرض المساعدة\n"
+        "/profile - ملفك الشخصي\n"
+        "/stats - إحصائيات البوت\n"
+        "/cancel - إلغاء العملية\n\n"
         "🔹 *الرجاء إدخال المقدار:* \n"
     )
     
     await update.message.reply_text(welcome_text, parse_mode='Markdown')
     return AMOUNT
+
+async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض الملف الشخصي للمستخدم"""
+    user = update.effective_user
+    
+    operations = get_user_operations(user.id, limit=5)
+    stats = get_bot_stats()
+    
+    text = f"👤 *ملفك الشخصي*\n"
+    text += f"🆔 المعرف: `{user.id}`\n"
+    text += f"📝 الاسم: {user.first_name}\n"
+    if user.username:
+        text += f"🔗 اليوزرنيم: @{user.username}\n"
+    
+    text += f"\n📊 *إحصائيات البوت:*\n"
+    text += f"👥 إجمالي المستخدمين: {stats['total_users']}\n"
+    text += f"📈 إجمالي العمليات: {stats['total_operations']}\n"
+    text += f"⭐ نشطون اليوم: {stats['active_today']}\n"
+    
+    if operations:
+        text += f"\n📋 *آخر عملياتك:*\n"
+        for i, op in enumerate(operations, 1):
+            date_str = op['created_at'][:16] if isinstance(op['created_at'], str) else str(op['created_at'])[:16]
+            text += f"{i}. `{op['amount']}` ÷ `{op['num_days']}` يوم 📅 {date_str}\n"
+    
+    await update.message.reply_text(text, parse_mode='Markdown')
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض إحصائيات البوت"""
+    stats = get_bot_stats()
+    
+    text = (
+        f"📊 *إحصائيات البوت*\n\n"
+        f"👥 **إجمالي المستخدمين:** `{stats['total_users']}`\n"
+        f"📈 **إجمالي العمليات:** `{stats['total_operations']}`\n"
+        f"⭐ **نشطون اليوم:** `{stats['active_today']}`\n\n"
+        f"🗄️ *حالة قاعدة البيانات:* ✅ متصلة"
+    )
+    
+    await update.message.reply_text(text, parse_mode='Markdown')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -407,18 +547,20 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "📌 *الأوامر المتاحة:*\n"
         "/start - بدء محادثة جديدة\n"
         "/help - عرض هذه المساعدة\n"
+        "/profile - عرض ملفك الشخصي\n"
+        "/stats - إحصائيات البوت\n"
         "/cancel - إلغاء العملية الحالية\n\n"
         "📝 *كيفية الاستخدام:*\n"
         "1️⃣ أرسل /start\n"
         "2️⃣ أدخل المقدار (مثال: 70)\n"
         "3️⃣ أدخل عدد الأيام (مثال: 7)\n"
-        "4️⃣ استلم الجدول كصورة فقط (بتصميم محسن)\n\n"
+        "4️⃣ استلم الجدول كصورة\n\n"
         "✅ *مميزات البوت:*\n"
         "• يدعم اللغة العربية بشكل كامل\n"
         "• الأيام تبدأ دائماً من الأحد\n"
         "• تقسيم دائري للفترات\n"
-        "• إرسال النتيجة كصورة بجودة عالية\n"
-        "• تقريب الأرقام إلى أعلى قيمة"
+        "• تقريب الأرقام إلى أعلى قيمة\n"
+        "• قاعدة بيانات SQLite لحفظ العمليات"
     )
     
     await update.message.reply_text(help_text, parse_mode='Markdown')
@@ -444,13 +586,11 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             await update.message.reply_text("❌ الرجاء إدخال مقدار أكبر من 0")
             return AMOUNT
         
-        # تخزين المقدار في بيانات المستخدم
         user_id = update.effective_user.id
         if user_id not in user_data:
             user_data[user_id] = {}
         user_data[user_id]['amount'] = amount
         
-        # طلب عدد الأيام
         await update.message.reply_text(
             f"✅ تم استلام المقدار: {amount}\n\n"
             "/cancel - إلغاء العملية الحالية\n\n"
@@ -475,38 +615,31 @@ async def get_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             await update.message.reply_text("❌ الرجاء إدخال عدد أيام أكبر من 0")
             return DAYS
         
-        # استرجاع المقدار
         amount = user_data[user_id]['amount']
         
-        # إرسال رسالة انتظار
         wait_msg = await update.message.reply_text("🔄 جاري إنشاء الجدول...")
         
-        # إنشاء الجدول
         df, amount, num_days = create_schedule_table(amount, num_days)
-        
-        # إنشاء صورة الجدول (بالتصميم المحسن)
         img_bytes = create_table_image(df, amount, num_days)
         
-        # إرسال الصورة فقط (بدون نص)
+        # حفظ العملية في قاعدة البيانات
+        save_operation(user_id, amount, num_days, f"تقسيم {amount} على {num_days}")
+        
         await update.message.reply_photo(
             photo=img_bytes,
             caption=f"📊 *نتيجة تقسيم {amount} على {num_days} أيام*",
             parse_mode='Markdown'
         )
         
-        # حذف رسالة الانتظار
         await wait_msg.delete()
         
-        # رسالة نجاح
         await update.message.reply_text(
             "✅ *تمت العملية بنجاح!*\n"
             "لبدء عملية جديدة أرسل /start",
             parse_mode='Markdown'
         )
         
-        # تنظيف بيانات المستخدم
         del user_data[user_id]
-        
         return ConversationHandler.END
         
     except ValueError:
@@ -527,18 +660,17 @@ def main():
     """
     الدالة الرئيسية لتشغيل البوت
     """
-    # الحصول على التوكن من متغيرات البيئة
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     
     if not token:
-        print("❌ خطأ: لم يتم العثور على TELEGRAM_BOT_TOKEN في ملف .env")
-        print("📝 الرجاء إنشاء ملف .env وإضافة التوكن الخاص بك")
+        print("❌ خطأ: لم يتم العثور على TELEGRAM_BOT_TOKEN")
         return
     
-    # إنشاء التطبيق
+    # تهيئة قاعدة البيانات
+    init_database()
+    
     application = Application.builder().token(token).build()
     
-    # إضافة معالج المحادثة
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -546,24 +678,22 @@ def main():
             DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_days)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False  # مهم للمحادثات الطويلة
+        per_message=False
     )
     
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler('help', help_command))
-    
-    # إضافة معالج الأخطاء
+    application.add_handler(CommandHandler('profile', profile))
+    application.add_handler(CommandHandler('stats', stats))
     application.add_error_handler(error_handler)
     
-    # تشغيل البوت
     print("✅ البوت يعمل الآن... اضغط Ctrl+C للإيقاف")
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,  # مهم: يتجاهل أي تحديثات قديمة
-        poll_interval=1.0  # التحقق من الرسائل كل ثانية
+        drop_pending_updates=True,
+        poll_interval=1.0
     )
 
-# للاستخدام مع Railway/Render - هذا هو المتغير الذي يبحث عنه
 application = main
 
 if __name__ == '__main__':
